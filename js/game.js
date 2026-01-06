@@ -7,6 +7,7 @@ import { Enemy, SlimeEnemy, GreaterSlimeEnemy, SlimeBoss, SkeletonEnemy } from '
 import { EffectsManager } from './effects.js';
 import { ParticleSystem } from './particles.js';
 import { TileMap } from './tileMap.js';
+import { DungeonBuilder } from './dungeonBuilder.js';
 
 export class Game {
     constructor(canvas) {
@@ -190,11 +191,38 @@ export class Game {
             this.environment.dispose();
             this.environment = null;
         }
+
+        // Dispose dungeon
+        if (this.dungeon) {
+            this.dungeon.dispose();
+            this.dungeon = null;
+        }
     }
 
-    setupScene() {
-        // Create tile map for tile-based gameplay
-        this.tileMap = new TileMap(this.scene);
+    async setupScene() {
+        if (this.gameMode === 'mobbing') {
+            // Create dungeon for mobbing mode
+            this.dungeon = new DungeonBuilder(this.scene);
+            await this.dungeon.loadModels();
+            this.dungeon.generate();
+            this.dungeon.build();
+
+            // Use dungeon for walkability checks
+            this.tileMap = {
+                isWalkable: (x, y) => this.dungeon.isWalkable(x * 2, y * 2),
+                worldToTile: (x, z) => this.dungeon.worldToTile(x, z),
+                tileToWorld: (x, y) => this.dungeon.tileToWorld(x, y),
+                showHoverAt: () => {},
+                dispose: () => {}
+            };
+
+            // Dark dungeon atmosphere
+            this.scene.background = new THREE.Color(0x111122);
+            this.scene.fog = new THREE.FogExp2(0x111122, 0.02);
+        } else {
+            // Boss mode uses simple tile map
+            this.tileMap = new TileMap(this.scene);
+        }
     }
 
     async addScenery() {
@@ -304,8 +332,14 @@ export class Game {
         } else {
             this.player = new Player(this.scene, this, 'warrior');
         }
-        // Start player at center of tile map
-        this.player.position.set(15, 0, 15);
+
+        // Set spawn position based on game mode
+        if (this.gameMode === 'mobbing' && this.dungeon) {
+            const spawn = this.dungeon.getSpawnPosition();
+            this.player.position.set(spawn.x, 0, spawn.z);
+        } else {
+            this.player.position.set(15, 0, 15);
+        }
     }
 
     setupCamera() {
@@ -317,8 +351,13 @@ export class Game {
         );
         // Use isometric camera for tile-based gameplay
         this.cameraController = new IsometricCamera(this.camera);
-        // Center camera on tile map
-        this.cameraController.setTarget(new THREE.Vector3(15, 0, 15));
+
+        // Center camera on player spawn
+        if (this.player) {
+            this.cameraController.setTarget(this.player.position.clone());
+        } else {
+            this.cameraController.setTarget(new THREE.Vector3(15, 0, 15));
+        }
     }
 
     setupInput() {
@@ -331,8 +370,37 @@ export class Game {
             const boss = new SlimeBoss(this.scene, this, 15, 25);
             boss.name = 'Slime Boss';
             this.enemies.push(boss);
+        } else if (this.gameMode === 'mobbing' && this.dungeon) {
+            // Mobbing mode - spawn enemies in dungeon rooms
+            const spawnPositions = this.dungeon.getEnemySpawnPositions(10);
+            const skeletonTypes = ['warrior', 'mage', 'minion', 'rogue'];
+
+            for (let i = 0; i < spawnPositions.length; i++) {
+                const pos = spawnPositions[i];
+
+                // Alternate between slimes and skeletons
+                if (i % 2 === 0) {
+                    const slime = new SlimeEnemy(this.scene, pos.x, pos.z);
+                    this.enemies.push(slime);
+                } else {
+                    const skeletonType = skeletonTypes[i % skeletonTypes.length];
+                    const skeleton = new SkeletonEnemy(this.scene, pos.x, pos.z, skeletonType);
+                    skeleton.name = `Skeleton ${skeletonType.charAt(0).toUpperCase() + skeletonType.slice(1)}`;
+                    this.enemies.push(skeleton);
+                }
+            }
+
+            // Spawn a Greater Slime boss in the last room
+            if (this.dungeon.rooms.length > 1) {
+                const lastRoom = this.dungeon.rooms[this.dungeon.rooms.length - 1];
+                const bossX = lastRoom.centerX * this.dungeon.tileSize;
+                const bossZ = lastRoom.centerY * this.dungeon.tileSize;
+                const boss = new GreaterSlimeEnemy(this.scene, bossX, bossZ);
+                boss.name = 'Greater Slime';
+                this.enemies.push(boss);
+            }
         } else {
-            // Mobbing mode - spawn enemies on tile grid
+            // Fallback for other modes
             const slimePositions = [
                 [8, 8], [12, 6], [20, 10], [22, 18]
             ];
@@ -341,25 +409,6 @@ export class Game {
                 const slime = new SlimeEnemy(this.scene, x, z);
                 this.enemies.push(slime);
             }
-
-            // Spawn skeleton enemies with 3D models
-            const skeletonTypes = ['warrior', 'mage', 'minion', 'rogue'];
-            const skeletonPositions = [
-                [5, 20], [25, 5], [10, 25], [20, 20]
-            ];
-
-            for (let i = 0; i < skeletonPositions.length; i++) {
-                const [x, z] = skeletonPositions[i];
-                const skeletonType = skeletonTypes[i % skeletonTypes.length];
-                const skeleton = new SkeletonEnemy(this.scene, x, z, skeletonType);
-                skeleton.name = `Skeleton ${skeletonType.charAt(0).toUpperCase() + skeletonType.slice(1)}`;
-                this.enemies.push(skeleton);
-            }
-
-            // Spawn a Greater Slime
-            const boss = new GreaterSlimeEnemy(this.scene, 15, 5);
-            boss.name = 'Greater Slime';
-            this.enemies.push(boss);
         }
     }
 
