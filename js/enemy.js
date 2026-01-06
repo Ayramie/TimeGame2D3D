@@ -459,52 +459,138 @@ export class SlimeBoss extends Enemy {
     }
 
     createMesh() {
-        // Large king slime - purple/magenta color
-        const bodyGeometry = new THREE.SphereGeometry(1.8, 20, 16);
-        const bodyMaterial = new THREE.MeshStandardMaterial({
-            color: 0x8844aa,
-            roughness: 0.3,
-            metalness: 0.1,
-            transparent: true,
-            opacity: 0.9
-        });
-
-        this.mesh = new THREE.Mesh(bodyGeometry, bodyMaterial);
-        this.mesh.scale.y = 0.65;
+        // Main slime group
+        this.mesh = new THREE.Group();
         this.mesh.position.copy(this.position);
         this.mesh.position.y = 1.2;
-        this.mesh.castShadow = true;
 
-        // Crown on top
-        const crownGeometry = new THREE.ConeGeometry(0.4, 0.6, 5);
-        const crownMaterial = new THREE.MeshStandardMaterial({ color: 0xffd700 });
-        const crown = new THREE.Mesh(crownGeometry, crownMaterial);
-        crown.position.set(0, 1.0, 0);
-        this.mesh.add(crown);
+        // Large king slime body - higher poly for wobble effect
+        const bodyGeometry = new THREE.SphereGeometry(1.8, 32, 24);
+        // Store original positions for wobble
+        this.originalPositions = bodyGeometry.attributes.position.array.slice();
 
-        // Eyes - larger and more menacing
-        const eyeGeometry = new THREE.SphereGeometry(0.3, 8, 6);
-        const eyeMaterial = new THREE.MeshStandardMaterial({ color: 0xffff00 });
-        const pupilGeometry = new THREE.SphereGeometry(0.15, 6, 4);
-        const pupilMaterial = new THREE.MeshStandardMaterial({ color: 0x880000 });
+        const bodyMaterial = new THREE.MeshPhysicalMaterial({
+            color: 0x8844aa,
+            roughness: 0.2,
+            metalness: 0.0,
+            transparent: true,
+            opacity: 0.85,
+            transmission: 0.3,
+            thickness: 1.5,
+            clearcoat: 0.8,
+            clearcoatRoughness: 0.2,
+            envMapIntensity: 0.5
+        });
+
+        this.bodyMesh = new THREE.Mesh(bodyGeometry, bodyMaterial);
+        this.bodyMesh.scale.y = 0.65;
+        this.bodyMesh.castShadow = true;
+        this.mesh.add(this.bodyMesh);
+
+        // Inner core glow
+        const coreGeometry = new THREE.SphereGeometry(1.2, 16, 12);
+        const coreMaterial = new THREE.MeshBasicMaterial({
+            color: 0xdd66ff,
+            transparent: true,
+            opacity: 0.4
+        });
+        this.coreMesh = new THREE.Mesh(coreGeometry, coreMaterial);
+        this.coreMesh.scale.y = 0.6;
+        this.mesh.add(this.coreMesh);
+
+        // Crown with gems
+        const crownGroup = new THREE.Group();
+
+        // Crown base ring
+        const crownBaseGeometry = new THREE.TorusGeometry(0.5, 0.08, 8, 16);
+        const crownMaterial = new THREE.MeshStandardMaterial({
+            color: 0xffd700,
+            roughness: 0.3,
+            metalness: 0.8
+        });
+        const crownBase = new THREE.Mesh(crownBaseGeometry, crownMaterial);
+        crownBase.rotation.x = Math.PI / 2;
+        crownGroup.add(crownBase);
+
+        // Crown spikes with gems
+        for (let i = 0; i < 5; i++) {
+            const angle = (i / 5) * Math.PI * 2;
+            const spikeGeometry = new THREE.ConeGeometry(0.12, 0.5, 4);
+            const spike = new THREE.Mesh(spikeGeometry, crownMaterial);
+            spike.position.set(Math.cos(angle) * 0.45, 0.25, Math.sin(angle) * 0.45);
+            crownGroup.add(spike);
+
+            // Gem on each spike
+            const gemGeometry = new THREE.OctahedronGeometry(0.08);
+            const gemMaterial = new THREE.MeshStandardMaterial({
+                color: i === 0 ? 0xff0044 : 0x44ffaa,
+                roughness: 0.1,
+                metalness: 0.3,
+                emissive: i === 0 ? 0xff0022 : 0x22ff55,
+                emissiveIntensity: 0.5
+            });
+            const gem = new THREE.Mesh(gemGeometry, gemMaterial);
+            gem.position.set(Math.cos(angle) * 0.45, 0.55, Math.sin(angle) * 0.45);
+            crownGroup.add(gem);
+        }
+
+        crownGroup.position.y = 1.1;
+        this.crownGroup = crownGroup;
+        this.mesh.add(crownGroup);
+
+        // Eyes - larger and more menacing with glow
+        const eyeGeometry = new THREE.SphereGeometry(0.35, 12, 8);
+        const eyeMaterial = new THREE.MeshStandardMaterial({
+            color: 0xffff44,
+            emissive: 0xffff00,
+            emissiveIntensity: 0.6
+        });
+        const pupilGeometry = new THREE.SphereGeometry(0.18, 8, 6);
+        const pupilMaterial = new THREE.MeshStandardMaterial({
+            color: 0x220000,
+            emissive: 0xff0000,
+            emissiveIntensity: 0.3
+        });
 
         // Left eye
-        const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
-        leftEye.position.set(-0.5, 0.4, 1.2);
-        this.mesh.add(leftEye);
+        this.leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+        this.leftEye.position.set(-0.55, 0.5, 1.1);
+        this.mesh.add(this.leftEye);
 
-        const leftPupil = new THREE.Mesh(pupilGeometry, pupilMaterial);
-        leftPupil.position.set(0, 0, 0.2);
-        leftEye.add(leftPupil);
+        this.leftPupil = new THREE.Mesh(pupilGeometry, pupilMaterial);
+        this.leftPupil.position.set(0, 0, 0.22);
+        this.leftEye.add(this.leftPupil);
 
         // Right eye
-        const rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
-        rightEye.position.set(0.5, 0.4, 1.2);
-        this.mesh.add(rightEye);
+        this.rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+        this.rightEye.position.set(0.55, 0.5, 1.1);
+        this.mesh.add(this.rightEye);
 
-        const rightPupil = new THREE.Mesh(pupilGeometry, pupilMaterial);
-        rightPupil.position.set(0, 0, 0.2);
-        rightEye.add(rightPupil);
+        this.rightPupil = new THREE.Mesh(pupilGeometry, pupilMaterial);
+        this.rightPupil.position.set(0, 0, 0.22);
+        this.rightEye.add(this.rightPupil);
+
+        // Angry eyebrows
+        const browGeometry = new THREE.BoxGeometry(0.5, 0.08, 0.15);
+        const browMaterial = new THREE.MeshStandardMaterial({ color: 0x442266 });
+
+        const leftBrow = new THREE.Mesh(browGeometry, browMaterial);
+        leftBrow.position.set(-0.55, 0.9, 1.15);
+        leftBrow.rotation.z = 0.3;
+        this.mesh.add(leftBrow);
+
+        const rightBrow = new THREE.Mesh(browGeometry, browMaterial);
+        rightBrow.position.set(0.55, 0.9, 1.15);
+        rightBrow.rotation.z = -0.3;
+        this.mesh.add(rightBrow);
+
+        // Wobble animation state
+        this.wobbleTime = 0;
+        this.wobbleSpeed = 2.5;
+        this.wobbleAmount = 0.08;
+
+        // Drip timer
+        this.dripTimer = 0;
 
         this.scene.add(this.mesh);
         this.healthBarHeight = 3.5;
@@ -526,7 +612,7 @@ export class SlimeBoss extends Enemy {
         // Stun check
         if (this.stunTime > 0) {
             this.stunTime -= deltaTime;
-            this.updateMeshPosition();
+            this.updateMeshPosition(deltaTime, player);
             this.updateHealthBar(camera);
             return;
         }
@@ -538,7 +624,7 @@ export class SlimeBoss extends Enemy {
 
         if (this.phaseTransitioning) {
             this.updatePhaseTransition(deltaTime);
-            this.updateMeshPosition();
+            this.updateMeshPosition(deltaTime, player);
             this.updateHealthBar(camera);
             return;
         }
@@ -554,14 +640,14 @@ export class SlimeBoss extends Enemy {
         // Handle current attack
         if (this.attackPhase !== 'none') {
             this.updateAttack(deltaTime, player);
-            this.updateMeshPosition();
+            this.updateMeshPosition(deltaTime, player);
             this.updateHealthBar(camera);
             return;
         }
 
         // Try to start an attack
         if (this.tryStartAttack(player, distToPlayer)) {
-            this.updateMeshPosition();
+            this.updateMeshPosition(deltaTime, player);
             this.updateHealthBar(camera);
             return;
         }
@@ -581,7 +667,7 @@ export class SlimeBoss extends Enemy {
             }
         }
 
-        this.updateMeshPosition();
+        this.updateMeshPosition(deltaTime, player);
         this.updateHealthBar(camera);
 
         // Update target ring
@@ -591,22 +677,111 @@ export class SlimeBoss extends Enemy {
         }
     }
 
-    updateMeshPosition() {
+    updateMeshPosition(deltaTime, player) {
         if (!this.mesh) return;
 
+        const dt = deltaTime || 0.016;
+
         // Bouncing animation
-        this.bounceTime += 0.016 * this.bounceAnimSpeed;
+        this.bounceTime += dt * this.bounceAnimSpeed;
         const bounce = Math.abs(Math.sin(this.bounceTime)) * 0.15;
 
         this.mesh.position.x = this.position.x;
         this.mesh.position.z = this.position.z;
         this.mesh.position.y = 1.2 + bounce;
 
-        // Squash and stretch
+        // Wobble animation on body mesh
+        if (this.bodyMesh && this.originalPositions) {
+            this.wobbleTime += dt * this.wobbleSpeed;
+            const positions = this.bodyMesh.geometry.attributes.position.array;
+
+            for (let i = 0; i < positions.length; i += 3) {
+                const ox = this.originalPositions[i];
+                const oy = this.originalPositions[i + 1];
+                const oz = this.originalPositions[i + 2];
+
+                // Create organic wobble based on position and time
+                const wobbleX = Math.sin(this.wobbleTime + oy * 3) * this.wobbleAmount;
+                const wobbleZ = Math.cos(this.wobbleTime * 1.3 + oy * 2) * this.wobbleAmount;
+                const wobbleY = Math.sin(this.wobbleTime * 0.8 + ox * 2) * this.wobbleAmount * 0.5;
+
+                positions[i] = ox + wobbleX;
+                positions[i + 1] = oy + wobbleY;
+                positions[i + 2] = oz + wobbleZ;
+            }
+            this.bodyMesh.geometry.attributes.position.needsUpdate = true;
+        }
+
+        // Squash and stretch on body
         const squash = 1 - bounce * 0.2;
-        this.mesh.scale.y = 0.65 * squash;
-        this.mesh.scale.x = 1 + bounce * 0.1;
-        this.mesh.scale.z = 1 + bounce * 0.1;
+        if (this.bodyMesh) {
+            this.bodyMesh.scale.y = 0.65 * squash;
+            this.bodyMesh.scale.x = 1 + bounce * 0.1;
+            this.bodyMesh.scale.z = 1 + bounce * 0.1;
+        }
+        if (this.coreMesh) {
+            this.coreMesh.scale.y = 0.6 * squash;
+            this.coreMesh.scale.x = 1 + bounce * 0.08;
+            this.coreMesh.scale.z = 1 + bounce * 0.08;
+
+            // Pulse the core glow
+            const pulse = Math.sin(this.wobbleTime * 2) * 0.1 + 0.4;
+            this.coreMesh.material.opacity = pulse;
+        }
+
+        // Crown wobble
+        if (this.crownGroup) {
+            this.crownGroup.rotation.y += dt * 0.3;
+            this.crownGroup.position.y = 1.1 + Math.sin(this.wobbleTime * 1.5) * 0.05;
+        }
+
+        // Eyes track player
+        if (player && this.leftEye && this.rightEye) {
+            const toPlayer = new THREE.Vector3().subVectors(player.position, this.mesh.position);
+            toPlayer.normalize();
+
+            // Clamp eye movement
+            const maxLook = 0.25;
+            const lookX = Math.max(-maxLook, Math.min(maxLook, toPlayer.x * 0.3));
+            const lookY = Math.max(-maxLook, Math.min(maxLook, (toPlayer.y - 0.5) * 0.2));
+
+            if (this.leftPupil) {
+                this.leftPupil.position.x = lookX;
+                this.leftPupil.position.y = lookY;
+            }
+            if (this.rightPupil) {
+                this.rightPupil.position.x = lookX;
+                this.rightPupil.position.y = lookY;
+            }
+        }
+
+        // Phase 2: color shift and increased intensity
+        if (this.phase === 2 && this.bodyMesh) {
+            const phaseColor = new THREE.Color(0xaa2266);
+            this.bodyMesh.material.color.lerp(phaseColor, dt * 0.5);
+            this.bodyMesh.material.emissive = new THREE.Color(0x440022);
+            this.bodyMesh.material.emissiveIntensity = 0.2;
+
+            // Faster wobble in phase 2
+            this.wobbleSpeed = 4;
+            this.wobbleAmount = 0.12;
+        }
+
+        // Drip particles
+        if (this.game && this.game.particles) {
+            this.dripTimer += dt;
+            if (this.dripTimer > 0.3) {
+                this.dripTimer = 0;
+                // Random drip from body
+                const angle = Math.random() * Math.PI * 2;
+                const dripPos = new THREE.Vector3(
+                    this.position.x + Math.cos(angle) * 1.5,
+                    this.position.y + 0.5 + Math.random() * 0.5,
+                    this.position.z + Math.sin(angle) * 1.5
+                );
+                this.game.particles.slimeDrip(dripPos);
+            }
+        }
     }
 
     tryStartAttack(player, distToPlayer) {

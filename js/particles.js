@@ -526,6 +526,24 @@ export class ParticleSystem {
         });
     }
 
+    slimeDrip(position) {
+        // Purple slime drip falling down
+        this.spawn(position, {
+            count: 2,
+            spread: 0.1,
+            speed: 0.5,
+            life: 1.2,
+            size: 0.3,
+            endSize: 0.15,
+            gravity: -8,
+            upwardBias: -1,
+            drag: 0.98,
+            color: 0x9955cc,
+            endColor: 0x662288,
+            texture: 'soft'
+        });
+    }
+
     swingTrail(startPos, endPos, color = 0xffffaa) {
         const dir = new THREE.Vector3().subVectors(endPos, startPos);
         const dist = dir.length();
