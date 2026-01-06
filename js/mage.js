@@ -409,10 +409,15 @@ export class Mage {
 
     // Q - Blizzard: AoE slow zone at target location
     useBlizzard(targetPosition) {
+        console.log('Mage.useBlizzard called with position:', targetPosition);
         const ability = this.abilities.blizzard;
-        if (ability.cooldownRemaining > 0) return false;
+        if (ability.cooldownRemaining > 0) {
+            console.log('Blizzard on cooldown:', ability.cooldownRemaining);
+            return false;
+        }
 
         ability.cooldownRemaining = ability.cooldown;
+        console.log('Blizzard activated, creating zone...');
 
         // Play cast animation
         if (this.useAnimatedCharacter) {
@@ -536,12 +541,17 @@ export class Mage {
         }
     }
 
-    // W - Flame Wave: Cone fire attack
+    // F - Flame Wave: Cone fire attack
     useFlameWave(enemies) {
+        console.log('Mage.useFlameWave called, enemies count:', enemies?.length);
         const ability = this.abilities.flameWave;
-        if (ability.cooldownRemaining > 0) return false;
+        if (ability.cooldownRemaining > 0) {
+            console.log('Flame Wave on cooldown:', ability.cooldownRemaining);
+            return false;
+        }
 
         ability.cooldownRemaining = ability.cooldown;
+        console.log('Flame Wave activated!');
 
         // Play cast animation
         if (this.useAnimatedCharacter) {
@@ -599,11 +609,16 @@ export class Mage {
 
     // E - Burn Aura: Toggle AoE damage around self
     toggleBurnAura() {
+        console.log('Mage.toggleBurnAura called, current state:', this.abilities.burnAura.isActive);
         const ability = this.abilities.burnAura;
-        if (ability.cooldownRemaining > 0) return false;
+        if (ability.cooldownRemaining > 0) {
+            console.log('Burn Aura on cooldown:', ability.cooldownRemaining);
+            return false;
+        }
 
         ability.isActive = !ability.isActive;
         ability.cooldownRemaining = ability.cooldown;
+        console.log('Burn Aura toggled to:', ability.isActive);
 
         if (ability.isActive) {
             // Create aura visual
@@ -691,10 +706,15 @@ export class Mage {
 
     // R - Backstep: Dash backward
     useBackstep() {
+        console.log('Mage.useBackstep called');
         const ability = this.abilities.backstep;
-        if (ability.cooldownRemaining > 0) return false;
+        if (ability.cooldownRemaining > 0) {
+            console.log('Backstep on cooldown:', ability.cooldownRemaining);
+            return false;
+        }
 
         ability.cooldownRemaining = ability.cooldown;
+        console.log('Backstep activated!');
 
         // Calculate backward direction
         const backDir = new THREE.Vector3(
