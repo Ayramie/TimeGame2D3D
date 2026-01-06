@@ -1,12 +1,12 @@
 import * as THREE from 'three';
 import { Player } from './player.js';
 import { Mage } from './mage.js';
-import { ThirdPersonCamera } from './camera.js';
+import { IsometricCamera } from './camera.js';
 import { InputManager } from './input.js';
 import { Enemy, SlimeEnemy, GreaterSlimeEnemy, SlimeBoss, SkeletonEnemy } from './enemy.js';
 import { EffectsManager } from './effects.js';
 import { ParticleSystem } from './particles.js';
-import { EnvironmentLoader } from './environment.js';
+import { TileMap } from './tileMap.js';
 
 export class Game {
     constructor(canvas) {
@@ -193,53 +193,8 @@ export class Game {
     }
 
     setupScene() {
-        // Ground plane with procedural grass-like texture
-        const groundGeometry = new THREE.PlaneGeometry(200, 200, 100, 100);
-
-        // Add some vertex displacement for natural look
-        const positions = groundGeometry.attributes.position;
-        for (let i = 0; i < positions.count; i++) {
-            const x = positions.getX(i);
-            const z = positions.getY(i);
-            // Subtle wave pattern
-            const height = Math.sin(x * 0.1) * Math.cos(z * 0.1) * 0.2;
-            positions.setZ(i, height);
-        }
-        groundGeometry.computeVertexNormals();
-
-        const groundMaterial = new THREE.MeshStandardMaterial({
-            color: 0x4a9f4a,
-            roughness: 0.85,
-            metalness: 0.0,
-            flatShading: false
-        });
-        this.ground = new THREE.Mesh(groundGeometry, groundMaterial);
-        this.ground.rotation.x = -Math.PI / 2;
-        this.ground.receiveShadow = true;
-        this.scene.add(this.ground);
-
-        // Subtle grid for arena feel
-        const gridHelper = new THREE.GridHelper(200, 40, 0x3d7d3d, 0x3d7d3d);
-        gridHelper.position.y = 0.02;
-        gridHelper.material.opacity = 0.15;
-        gridHelper.material.transparent = true;
-        this.scene.add(gridHelper);
-
-        // Add arena circle marker
-        const arenaCircle = new THREE.RingGeometry(25, 25.3, 64);
-        const arenaMaterial = new THREE.MeshBasicMaterial({
-            color: 0x5588aa,
-            transparent: true,
-            opacity: 0.3,
-            side: THREE.DoubleSide
-        });
-        const arena = new THREE.Mesh(arenaCircle, arenaMaterial);
-        arena.rotation.x = -Math.PI / 2;
-        arena.position.y = 0.03;
-        this.scene.add(arena);
-
-        // Add some decorative elements - use KayKit assets if available
-        this.addScenery();
+        // Create tile map for tile-based gameplay
+        this.tileMap = new TileMap(this.scene);
     }
 
     async addScenery() {
@@ -349,7 +304,8 @@ export class Game {
         } else {
             this.player = new Player(this.scene, this, 'warrior');
         }
-        this.player.position.set(0, 0, 0);
+        // Start player at center of tile map
+        this.player.position.set(15, 0, 15);
     }
 
     setupCamera() {
@@ -359,7 +315,10 @@ export class Game {
             0.1,
             1000
         );
-        this.cameraController = new ThirdPersonCamera(this.camera, this.player);
+        // Use isometric camera for tile-based gameplay
+        this.cameraController = new IsometricCamera(this.camera);
+        // Center camera on tile map
+        this.cameraController.setTarget(new THREE.Vector3(15, 0, 15));
     }
 
     setupInput() {
@@ -368,17 +327,17 @@ export class Game {
 
     spawnEnemies() {
         if (this.gameMode === 'boss') {
-            // Spawn the Slime Boss
-            const boss = new SlimeBoss(this.scene, this, 0, 15);
+            // Spawn the Slime Boss at tile position
+            const boss = new SlimeBoss(this.scene, this, 15, 25);
             boss.name = 'Slime Boss';
             this.enemies.push(boss);
         } else {
-            // Mobbing mode - spawn slimes around the arena
+            // Mobbing mode - spawn enemies on tile grid
             const slimePositions = [
-                [8, 0, 5], [10, 0, -8], [-12, 0, 6], [-8, 0, -10],
+                [8, 8], [12, 6], [20, 10], [22, 18]
             ];
 
-            for (const [x, y, z] of slimePositions) {
+            for (const [x, z] of slimePositions) {
                 const slime = new SlimeEnemy(this.scene, x, z);
                 this.enemies.push(slime);
             }
@@ -386,11 +345,11 @@ export class Game {
             // Spawn skeleton enemies with 3D models
             const skeletonTypes = ['warrior', 'mage', 'minion', 'rogue'];
             const skeletonPositions = [
-                [15, 0, 12], [-15, 0, -15], [20, 0, 0], [-5, 0, 20]
+                [5, 20], [25, 5], [10, 25], [20, 20]
             ];
 
             for (let i = 0; i < skeletonPositions.length; i++) {
-                const [x, y, z] = skeletonPositions[i];
+                const [x, z] = skeletonPositions[i];
                 const skeletonType = skeletonTypes[i % skeletonTypes.length];
                 const skeleton = new SkeletonEnemy(this.scene, x, z, skeletonType);
                 skeleton.name = `Skeleton ${skeletonType.charAt(0).toUpperCase() + skeletonType.slice(1)}`;
@@ -398,7 +357,7 @@ export class Game {
             }
 
             // Spawn a Greater Slime
-            const boss = new GreaterSlimeEnemy(this.scene, 0, 20);
+            const boss = new GreaterSlimeEnemy(this.scene, 15, 5);
             boss.name = 'Greater Slime';
             this.enemies.push(boss);
         }
@@ -515,11 +474,12 @@ export class Game {
         // Skip updates if not playing
         if (this.gameState !== 'playing') return;
 
-        // Update player
-        this.player.update(deltaTime, this.input, this.cameraController);
+        // Update player (click-to-move)
+        this.player.update(deltaTime);
 
-        // Update camera
-        this.cameraController.update(deltaTime, this.input);
+        // Update camera to follow player
+        this.cameraController.setTarget(this.player.position);
+        this.cameraController.update(deltaTime);
 
         // Update enemies
         for (const enemy of this.enemies) {

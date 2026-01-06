@@ -24,6 +24,10 @@ export class Player {
         this.autoAttackCooldownMax = 0.8; // Faster attacks
         this.autoAttackDamage = 25;
 
+        // Click-to-move
+        this.moveTarget = null; // {x, z} world position
+        this.isMoving = false;
+
         // Abilities
         this.abilities = {
             cleave: {
@@ -321,9 +325,9 @@ export class Player {
         }
     }
 
-    update(deltaTime, input, cameraController) {
-        // Process movement (pass input to check if mouse turning)
-        const isMoving = this.handleMovement(deltaTime, input, cameraController, input.rightMouseDown);
+    update(deltaTime) {
+        // Process movement (click-to-move)
+        const isMoving = this.handleMovement(deltaTime);
 
         // Process abilities
         this.updateAbilities(deltaTime);
@@ -378,88 +382,53 @@ export class Player {
         }
     }
 
-    handleMovement(deltaTime, input, cameraController, isMouseTurning = false) {
-        // Forward/backward movement (W/S)
-        const forwardBack = new THREE.Vector3();
-        if (input.keys.w || input.keys.arrowup) forwardBack.z -= 1;
-        if (input.keys.s || input.keys.arrowdown) forwardBack.z += 1;
+    // Set move target for click-to-move
+    setMoveTarget(x, z) {
+        this.moveTarget = { x, z };
+        this.isMoving = true;
+    }
 
-        // Strafe movement (A/D) - sideways, no turning
-        const strafe = new THREE.Vector3();
-        if (input.keys.a || input.keys.arrowleft) strafe.x -= 1;
-        if (input.keys.d || input.keys.arrowright) strafe.x += 1;
+    // Clear move target
+    clearMoveTarget() {
+        this.moveTarget = null;
+        this.isMoving = false;
+    }
 
-        // Calculate final movement direction
-        const moveDir = new THREE.Vector3();
-        const cameraYaw = -cameraController.yaw;
-        const cos = Math.cos(cameraYaw);
-        const sin = Math.sin(cameraYaw);
-
-        // Rotate forward/back by camera yaw
-        if (forwardBack.length() > 0) {
-            const rotatedZ = forwardBack.z * cos;
-            const rotatedX = -forwardBack.z * sin;
-            moveDir.x += rotatedX;
-            moveDir.z += rotatedZ;
-        }
-
-        // Rotate strafe by camera yaw (perpendicular)
-        if (strafe.length() > 0) {
-            const rotatedX = strafe.x * cos;
-            const rotatedZ = strafe.x * sin;
-            moveDir.x += rotatedX;
-            moveDir.z += rotatedZ;
-        }
-
+    handleMovement(deltaTime) {
         let isMoving = false;
-        if (moveDir.length() > 0) {
-            isMoving = true;
-            moveDir.normalize();
 
-            // Apply movement
-            this.position.x += moveDir.x * this.moveSpeed * deltaTime;
-            this.position.z += moveDir.z * this.moveSpeed * deltaTime;
+        // Click-to-move: move toward target
+        if (this.moveTarget) {
+            const dx = this.moveTarget.x - this.position.x;
+            const dz = this.moveTarget.z - this.position.z;
+            const dist = Math.sqrt(dx * dx + dz * dz);
 
-            // Only turn character when moving forward (W), not backward or strafing
-            // Also don't override rotation when mouse turning (right-click held)
-            if (forwardBack.z < 0 && !isMouseTurning) {
-                // Only when pressing W (forward), update facing direction
-                const forwardDir = new THREE.Vector3(-forwardBack.z * sin, 0, forwardBack.z * cos);
-                if (forwardDir.length() > 0) {
-                    this.rotation = Math.atan2(forwardDir.x, forwardDir.z);
-                }
+            if (dist > 0.1) {
+                isMoving = true;
+
+                // Calculate direction
+                const dirX = dx / dist;
+                const dirZ = dz / dist;
+
+                // Move toward target
+                const moveAmount = Math.min(this.moveSpeed * deltaTime, dist);
+                this.position.x += dirX * moveAmount;
+                this.position.z += dirZ * moveAmount;
+
+                // Face movement direction
+                this.rotation = Math.atan2(dirX, dirZ);
+            } else {
+                // Reached target
+                this.clearMoveTarget();
             }
         }
 
-        // Jumping (spacebar is ' ' key)
-        if (input.keys[' '] && this.isGrounded) {
-            this.velocity.y = this.jumpForce;
-            this.isGrounded = false;
-            input.keys[' '] = false; // Consume jump input
+        // Keep in bounds (tile map is 30x30)
+        const bounds = 29;
+        this.position.x = Math.max(0, Math.min(bounds, this.position.x));
+        this.position.z = Math.max(0, Math.min(bounds, this.position.z));
 
-            // Play jump animation
-            if (this.useAnimatedCharacter) {
-                this.character.playJump();
-            }
-        }
-
-        // Apply gravity
-        if (!this.isGrounded) {
-            this.velocity.y -= 30 * deltaTime;
-            this.position.y += this.velocity.y * deltaTime;
-
-            if (this.position.y <= 0) {
-                this.position.y = 0;
-                this.velocity.y = 0;
-                this.isGrounded = true;
-            }
-        }
-
-        // Keep in bounds
-        const bounds = 95;
-        this.position.x = Math.max(-bounds, Math.min(bounds, this.position.x));
-        this.position.z = Math.max(-bounds, Math.min(bounds, this.position.z));
-
+        this.isMoving = isMoving;
         return isMoving;
     }
 

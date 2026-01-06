@@ -5,27 +5,24 @@ export class InputManager {
         this.canvas = canvas;
         this.game = game;
 
-        // Key states
-        this.keys = {
-            w: false,
-            a: false,
-            s: false,
-            d: false,
-            ' ': false, // spacebar
-            shift: false,
-            arrowup: false,
-            arrowdown: false,
-            arrowleft: false,
-            arrowright: false
-        };
-
         // Mouse state
         this.mouseX = 0;
         this.mouseY = 0;
+        this.mouseWorldPos = new THREE.Vector3();
         this.leftMouseDown = false;
         this.rightMouseDown = false;
-        this.lastMouseX = 0;
-        this.lastMouseY = 0;
+
+        // Click targets
+        this.clickedTile = null;
+        this.hoveredTile = null;
+        this.hoveredEnemy = null;
+
+        // Raycaster for mouse picking
+        this.raycaster = new THREE.Raycaster();
+        this.mouse = new THREE.Vector2();
+
+        // Key states for abilities
+        this.keys = {};
 
         this.setupEventListeners();
     }
@@ -47,16 +44,11 @@ export class InputManager {
 
     onKeyDown(e) {
         const key = e.key.toLowerCase();
+        this.keys[key] = true;
 
-        // Movement keys (always track)
-        if (key in this.keys) {
-            this.keys[key] = true;
-        }
-
-        // Only handle ability/action inputs when playing
+        // Only handle ability inputs when playing
         if (this.game.gameState !== 'playing' || !this.game.player) return;
 
-        // Handle special keys
         switch (key) {
             case 'tab':
                 e.preventDefault();
@@ -68,146 +60,167 @@ export class InputManager {
                 break;
 
             case 'q':
-                // Q ability - Cleave (Warrior) / Blizzard (Mage)
-                if (this.game.selectedClass === 'mage') {
-                    // Blizzard targets the targeted enemy's position, or in front of player
-                    let targetPos;
-                    if (this.game.player.targetEnemy && this.game.player.targetEnemy.isAlive) {
-                        targetPos = this.game.player.targetEnemy.position.clone();
-                    } else {
-                        // Default to in front of player
-                        const forward = new THREE.Vector3(
-                            Math.sin(this.game.player.rotation),
-                            0,
-                            Math.cos(this.game.player.rotation)
-                        );
-                        targetPos = this.game.player.position.clone().add(forward.multiplyScalar(8));
-                    }
-                    console.log('Mage Q: Blizzard at', targetPos);
-                    const result = this.game.player.useBlizzard(targetPos);
-                    console.log('Blizzard result:', result);
-                } else {
-                    this.game.player.useCleave(this.game.enemies);
-                }
+                // Q ability - Cleave
+                this.game.player.useCleave(this.game.enemies);
                 break;
 
-            case 'f':
-                // F ability - Bladestorm (Warrior) / Flame Wave (Mage)
-                if (this.game.selectedClass === 'mage') {
-                    console.log('Mage F: Flame Wave');
-                    const result = this.game.player.useFlameWave(this.game.enemies);
-                    console.log('Flame Wave result:', result);
-                } else {
-                    this.game.player.useBladestorm();
-                }
+            case 'w':
+                // W ability - Bladestorm
+                this.game.player.useBladestorm();
                 break;
 
             case 'e':
-                // E ability - Parry (Warrior) / Burn Aura (Mage)
-                if (this.game.selectedClass === 'mage') {
-                    console.log('Mage E: Toggle Burn Aura');
-                    const result = this.game.player.toggleBurnAura();
-                    console.log('Burn Aura result:', result, 'active:', this.game.player.abilities.burnAura.isActive);
-                } else {
-                    this.game.player.useParry();
-                }
+                // E ability - Parry
+                this.game.player.useParry();
                 break;
 
             case 'r':
-                // R ability - Charge (Warrior) / Backstep (Mage)
-                if (this.game.selectedClass === 'mage') {
-                    console.log('Mage R: Backstep');
-                    const result = this.game.player.useBackstep();
-                    console.log('Backstep result:', result);
-                } else {
-                    this.game.player.useCharge();
-                }
+                // R ability - Charge
+                this.game.player.useCharge();
                 break;
 
             case '1':
                 this.game.player.usePotion();
+                break;
+
+            case 'c':
+                // Toggle camera mode (if implemented)
                 break;
         }
     }
 
     onKeyUp(e) {
         const key = e.key.toLowerCase();
-
-        if (key in this.keys) {
-            this.keys[key] = false;
-        }
+        this.keys[key] = false;
     }
 
     onMouseDown(e) {
-        this.lastMouseX = e.clientX;
-        this.lastMouseY = e.clientY;
+        const rect = this.canvas.getBoundingClientRect();
+        this.mouseX = e.clientX - rect.left;
+        this.mouseY = e.clientY - rect.top;
 
-        if (e.button === 0) { // Left click
+        this.updateMousePosition(e);
+
+        if (e.button === 0) { // Left click - move to position
             this.leftMouseDown = true;
-            // Request pointer lock for smooth camera orbit
-            this.canvas.requestPointerLock();
-        } else if (e.button === 2) { // Right click
+            this.handleLeftClick();
+        } else if (e.button === 2) { // Right click - target enemy
             this.rightMouseDown = true;
-            // Request pointer lock for unlimited turning
-            this.canvas.requestPointerLock();
+            this.handleRightClick();
         }
     }
 
     onMouseUp(e) {
         if (e.button === 0) {
-            // If it was a quick click (not drag), do a free swing attack
-            if (this.leftMouseDown && !this.wasDragging) {
-                this.game.player.performAutoAttack();
-            }
             this.leftMouseDown = false;
         } else if (e.button === 2) {
             this.rightMouseDown = false;
         }
-        this.wasDragging = false;
+    }
 
-        // Release pointer lock when no mouse buttons held
-        if (!this.leftMouseDown && !this.rightMouseDown) {
-            if (document.pointerLockElement) {
-                document.exitPointerLock();
+    onMouseMove(e) {
+        this.updateMousePosition(e);
+
+        // Update hovered tile
+        if (this.game.tileMap) {
+            const tile = this.game.tileMap.worldToTile(this.mouseWorldPos.x, this.mouseWorldPos.z);
+            this.hoveredTile = tile;
+            this.game.tileMap.showHoverAt(tile.x, tile.y);
+        }
+
+        // Check for hovered enemy
+        this.updateHoveredEnemy();
+
+        // If holding left mouse, keep moving
+        if (this.leftMouseDown && this.game.player) {
+            this.handleLeftClick();
+        }
+    }
+
+    updateMousePosition(e) {
+        const rect = this.canvas.getBoundingClientRect();
+        this.mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+        this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+        // Raycast to ground plane
+        if (this.game.camera) {
+            this.raycaster.setFromCamera(this.mouse, this.game.camera);
+
+            // Intersect with ground plane (y = 0)
+            const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+            const intersectPoint = new THREE.Vector3();
+            this.raycaster.ray.intersectPlane(groundPlane, intersectPoint);
+
+            if (intersectPoint) {
+                this.mouseWorldPos.copy(intersectPoint);
             }
         }
     }
 
-    onMouseMove(e) {
-        // Use movementX/Y when pointer locked, otherwise calculate delta
-        let deltaX, deltaY;
-        if (document.pointerLockElement) {
-            deltaX = e.movementX;
-            deltaY = e.movementY;
+    handleLeftClick() {
+        if (this.game.gameState !== 'playing' || !this.game.player) return;
+
+        // Move player to clicked position
+        const targetTile = this.game.tileMap.worldToTile(this.mouseWorldPos.x, this.mouseWorldPos.z);
+
+        if (this.game.tileMap.isWalkable(targetTile.x, targetTile.y)) {
+            const worldPos = this.game.tileMap.tileToWorld(targetTile.x, targetTile.y);
+            this.game.player.setMoveTarget(worldPos.x, worldPos.z);
+        }
+    }
+
+    handleRightClick() {
+        if (this.game.gameState !== 'playing' || !this.game.player) return;
+
+        // Check if clicking on an enemy to target them
+        const clickedEnemy = this.getEnemyAtMouse();
+
+        if (clickedEnemy) {
+            this.game.player.setTarget(clickedEnemy);
+            this.game.updateTargetFrame(clickedEnemy);
         } else {
-            deltaX = e.clientX - this.lastMouseX;
-            deltaY = e.clientY - this.lastMouseY;
-            this.lastMouseX = e.clientX;
-            this.lastMouseY = e.clientY;
+            // Clear target if clicking empty space
+            this.game.clearTarget();
+        }
+    }
+
+    updateHoveredEnemy() {
+        this.hoveredEnemy = this.getEnemyAtMouse();
+
+        // Update cursor style
+        if (this.hoveredEnemy) {
+            this.canvas.style.cursor = 'pointer';
+        } else {
+            this.canvas.style.cursor = 'default';
+        }
+    }
+
+    getEnemyAtMouse() {
+        if (!this.game.enemies) return null;
+
+        // Check distance to each enemy
+        for (const enemy of this.game.enemies) {
+            if (!enemy.isAlive) continue;
+
+            const enemyPos = enemy.position;
+            const dx = this.mouseWorldPos.x - enemyPos.x;
+            const dz = this.mouseWorldPos.z - enemyPos.z;
+            const dist = Math.sqrt(dx * dx + dz * dz);
+
+            // Click within 1.5 units of enemy
+            if (dist < 1.5) {
+                return enemy;
+            }
         }
 
-        // Track if we're dragging
-        if ((this.leftMouseDown || this.rightMouseDown) && (Math.abs(deltaX) > 2 || Math.abs(deltaY) > 2)) {
-            this.wasDragging = true;
-        }
-
-        if (this.rightMouseDown) {
-            // Right click drag: rotate character AND camera
-            this.game.cameraController.rotateCharacter(deltaX, deltaY);
-        } else if (this.leftMouseDown) {
-            // Left click drag: rotate camera only (orbit)
-            this.game.cameraController.rotateCamera(deltaX, deltaY);
-        }
+        return null;
     }
 
     onWheel(e) {
         e.preventDefault();
         const delta = e.deltaY > 0 ? 1 : -1;
-        this.game.cameraController.handleScroll(delta);
-    }
-
-    // Check if any mouse button is held for camera rotation
-    isRotating() {
-        return this.leftMouseDown || this.rightMouseDown;
+        if (this.game.cameraController) {
+            this.game.cameraController.handleScroll(delta);
+        }
     }
 }
