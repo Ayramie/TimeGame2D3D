@@ -187,6 +187,91 @@ export class EffectsManager {
         });
     }
 
+    // Flame Wave effect - mage cone fire attack
+    createFlameWaveEffect(position, rotation) {
+        const group = new THREE.Group();
+
+        // Fire cone on ground
+        const coneAngle = Math.PI * 0.6; // 108 degrees
+        const fireArcGeometry = new THREE.RingGeometry(0.5, 1.5, 32, 1, -coneAngle / 2, coneAngle);
+        const fireArcMaterial = new THREE.MeshBasicMaterial({
+            color: 0xff4400,
+            transparent: true,
+            opacity: 0.9,
+            side: THREE.DoubleSide
+        });
+        const fireArc = new THREE.Mesh(fireArcGeometry, fireArcMaterial);
+        fireArc.rotation.x = -Math.PI / 2;
+        fireArc.rotation.z = -Math.PI / 2;
+        fireArc.position.y = 0.2;
+        group.add(fireArc);
+
+        // Inner brighter cone
+        const innerArcGeometry = new THREE.RingGeometry(0.3, 1, 32, 1, -coneAngle / 2, coneAngle);
+        const innerArcMaterial = new THREE.MeshBasicMaterial({
+            color: 0xff8800,
+            transparent: true,
+            opacity: 0.85,
+            side: THREE.DoubleSide
+        });
+        const innerArc = new THREE.Mesh(innerArcGeometry, innerArcMaterial);
+        innerArc.rotation.x = -Math.PI / 2;
+        innerArc.rotation.z = -Math.PI / 2;
+        innerArc.position.y = 0.25;
+        group.add(innerArc);
+
+        // Fire particles in cone
+        for (let i = 0; i < 15; i++) {
+            const particleGeometry = new THREE.SphereGeometry(0.2, 6, 6);
+            const particleMaterial = new THREE.MeshBasicMaterial({
+                color: i < 5 ? 0xffcc00 : 0xff6600,
+                transparent: true,
+                opacity: 0.9
+            });
+            const particle = new THREE.Mesh(particleGeometry, particleMaterial);
+            const spreadAngle = -coneAngle / 2 + Math.random() * coneAngle;
+            const dist = 0.5 + Math.random() * 1.5;
+            particle.position.x = Math.sin(spreadAngle) * dist;
+            particle.position.z = -Math.cos(spreadAngle) * dist;
+            particle.position.y = 0.5 + Math.random() * 1;
+            particle.userData.angle = spreadAngle;
+            particle.userData.ySpeed = 2 + Math.random() * 2;
+            group.add(particle);
+        }
+
+        group.position.copy(position);
+        group.rotation.y = rotation;
+
+        this.scene.add(group);
+
+        this.effects.push({
+            group: group,
+            life: 0.5,
+            update: (dt, eff) => {
+                const progress = (0.5 - eff.life) / 0.5;
+
+                // Fire arcs expand
+                const scale = 1 + progress * 9;
+                group.children[0].scale.set(scale, scale, 1);
+                group.children[0].material.opacity = eff.life * 2;
+
+                group.children[1].scale.set(scale * 0.9, scale * 0.9, 1);
+                group.children[1].material.opacity = eff.life * 1.8;
+
+                // Fire particles shoot out and rise
+                for (let i = 2; i < group.children.length; i++) {
+                    const p = group.children[i];
+                    const dist = 1 + progress * 8;
+                    p.position.x = Math.sin(p.userData.angle) * dist;
+                    p.position.z = -Math.cos(p.userData.angle) * dist;
+                    p.position.y += p.userData.ySpeed * dt;
+                    p.material.opacity = eff.life * 2;
+                    p.scale.setScalar(1 - progress * 0.4);
+                }
+            }
+        });
+    }
+
     // Parry shield effect - defensive stance around player
     createParryEffect(position, rotation = 0) {
         const shieldGeometry = new THREE.CircleGeometry(1.5, 24);

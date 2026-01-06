@@ -869,4 +869,210 @@ export class ParticleSystem {
             rotationSpeed: 6
         });
     }
+
+    // === Mage Ability Effects ===
+
+    magicCast(position) {
+        // Blue magic sparkles at cast point
+        this.spawn(position, {
+            count: 12,
+            spread: 0.3,
+            speed: 3,
+            life: 0.4,
+            size: 0.3,
+            endSize: 0.05,
+            gravity: 1,
+            upwardBias: 2,
+            color: 0x44aaff,
+            endColor: 0x2266ff,
+            texture: 'spark'
+        });
+        this.spawn(position, {
+            count: 5,
+            spread: 0.2,
+            speed: 1,
+            life: 0.3,
+            size: 0.5,
+            gravity: 0,
+            color: 0x88ccff,
+            texture: 'soft'
+        });
+    }
+
+    magicImpact(position) {
+        // Blue burst on hit
+        this.spawn(position, {
+            count: 15,
+            spread: 0.2,
+            speed: 6,
+            life: 0.4,
+            size: 0.35,
+            endSize: 0.05,
+            gravity: -5,
+            upwardBias: 3,
+            color: 0x66bbff,
+            endColor: 0x2244ff,
+            texture: 'soft'
+        });
+        // Sparks
+        this.spawn(position, {
+            count: 8,
+            spread: 0.15,
+            speed: 8,
+            life: 0.3,
+            size: 0.2,
+            gravity: -8,
+            upwardBias: 2,
+            color: 0xaaddff,
+            texture: 'spark'
+        });
+    }
+
+    blizzardBurst(position) {
+        // Initial ice burst
+        this.spawn({x: position.x, y: position.y + 0.5, z: position.z}, {
+            count: 30,
+            spread: 3,
+            speed: 4,
+            life: 1.0,
+            size: 0.4,
+            endSize: 0.1,
+            gravity: -2,
+            upwardBias: 3,
+            drag: 0.95,
+            color: 0x88ddff,
+            endColor: 0xaaeeff,
+            texture: 'soft'
+        });
+        // Ice crystals
+        this.spawn({x: position.x, y: position.y + 1, z: position.z}, {
+            count: 15,
+            spread: 2,
+            speed: 2,
+            life: 1.5,
+            size: 0.25,
+            gravity: -4,
+            upwardBias: 0,
+            color: 0xccffff,
+            texture: 'star',
+            rotationSpeed: 2
+        });
+    }
+
+    blizzardTick(position) {
+        // Ongoing ice particles
+        const angle = Math.random() * Math.PI * 2;
+        const dist = Math.random() * 4;
+        const pos = {
+            x: position.x + Math.cos(angle) * dist,
+            y: position.y + 0.3,
+            z: position.z + Math.sin(angle) * dist
+        };
+        this.spawn(pos, {
+            count: 3,
+            spread: 0.3,
+            speed: 1.5,
+            life: 0.8,
+            size: 0.25,
+            endSize: 0.05,
+            gravity: -3,
+            upwardBias: 2,
+            color: 0x88ccff,
+            endColor: 0xaaddff,
+            texture: 'soft'
+        });
+    }
+
+    flameWave(position, direction, range = 8) {
+        const dir = direction.clone().normalize();
+        // Expanding wave of fire
+        for (let d = 1; d < range; d += 0.6) {
+            const pos = position.clone().addScaledVector(dir, d);
+            pos.y = 0.5;
+            setTimeout(() => {
+                // Fire particles
+                this.spawn(pos, {
+                    count: 10,
+                    spread: d * 0.3,
+                    speed: 5,
+                    life: 0.6,
+                    size: 0.5,
+                    endSize: 0.1,
+                    gravity: 2,
+                    upwardBias: 4,
+                    color: 0xff6600,
+                    endColor: 0xff2200,
+                    texture: 'soft'
+                });
+                // Embers
+                this.spawn(pos, {
+                    count: 4,
+                    spread: d * 0.2,
+                    speed: 8,
+                    life: 0.8,
+                    size: 0.15,
+                    gravity: -6,
+                    upwardBias: 5,
+                    color: 0xffaa44,
+                    texture: 'spark'
+                });
+            }, d * 30);
+        }
+    }
+
+    burnAuraFlame(position) {
+        // Small fire puff
+        this.spawn(position, {
+            count: 2,
+            spread: 0.1,
+            speed: 2,
+            life: 0.5,
+            size: 0.3,
+            endSize: 0.05,
+            gravity: 3,
+            upwardBias: 3,
+            color: 0xff5500,
+            endColor: 0xff2200,
+            texture: 'soft'
+        });
+    }
+
+    backstepTrail(startPos, endPos) {
+        const dir = new THREE.Vector3().subVectors(endPos, startPos);
+        const dist = dir.length();
+        dir.normalize();
+
+        // Trail of magic dust
+        const steps = Math.floor(dist * 2);
+        for (let i = 0; i < steps; i++) {
+            const t = i / steps;
+            const pos = new THREE.Vector3().lerpVectors(startPos, endPos, t);
+            pos.y = 0.5;
+            this.spawn(pos, {
+                count: 3,
+                spread: 0.2,
+                speed: 2,
+                life: 0.4,
+                size: 0.3,
+                endSize: 0.05,
+                gravity: 0,
+                upwardBias: 1,
+                color: 0x8866ff,
+                endColor: 0x4422aa,
+                texture: 'soft'
+            });
+        }
+        // Burst at end
+        this.spawn(endPos, {
+            count: 10,
+            spread: 0.3,
+            speed: 4,
+            life: 0.3,
+            size: 0.25,
+            gravity: -2,
+            upwardBias: 2,
+            color: 0xaa88ff,
+            texture: 'spark'
+        });
+    }
 }

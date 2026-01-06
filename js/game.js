@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Player } from './player.js';
+import { Mage } from './mage.js';
 import { ThirdPersonCamera } from './camera.js';
 import { InputManager } from './input.js';
 import { Enemy, SlimeEnemy, GreaterSlimeEnemy, SlimeBoss } from './enemy.js';
@@ -26,6 +27,7 @@ export class Game {
         // Game state
         this.gameState = 'menu'; // 'menu' or 'playing'
         this.gameMode = null; // 'mobbing' or 'boss'
+        this.selectedClass = 'warrior'; // 'warrior' or 'mage'
         this.enemies = [];
         this.projectiles = [];
         this.particles = [];
@@ -48,6 +50,18 @@ export class Game {
             btn.addEventListener('click', () => {
                 const mode = btn.dataset.mode;
                 this.startGame(mode);
+            });
+        });
+
+        // Character selection buttons
+        const classBtns = document.querySelectorAll('.class-btn');
+        classBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                // Remove selected from all
+                classBtns.forEach(b => b.classList.remove('selected'));
+                // Add selected to clicked
+                btn.classList.add('selected');
+                this.selectedClass = btn.dataset.class;
             });
         });
 
@@ -99,12 +113,42 @@ export class Game {
         this.gameState = 'playing';
         this.canvas.style.opacity = '1';
         menu.classList.add('hidden');
-        menu.innerHTML = '<h1>TileGame 3D</h1><div class="menu-options"><button class="menu-btn" data-mode="mobbing">Mobbing</button><button class="menu-btn" data-mode="boss">Slime Boss</button></div>';
+        menu.innerHTML = `
+            <h1>TileGame 3D</h1>
+            <div class="class-selection">
+                <h3>Choose Class</h3>
+                <div class="class-buttons">
+                    <button class="class-btn selected" data-class="warrior">⚔️ Warrior</button>
+                    <button class="class-btn" data-class="mage">🔮 Mage</button>
+                </div>
+            </div>
+            <div class="menu-options">
+                <button class="menu-btn" data-mode="mobbing">Mobbing</button>
+                <button class="menu-btn" data-mode="boss">Slime Boss</button>
+            </div>
+        `;
         document.getElementById('ui').style.display = 'block';
         document.getElementById('return-menu-btn').style.display = 'block';
 
+        // Update ability bar labels based on class
+        this.updateAbilityLabels();
+
         // Re-attach menu handlers since we replaced innerHTML
         this.setupMenu();
+    }
+
+    updateAbilityLabels() {
+        if (this.selectedClass === 'mage') {
+            document.querySelector('#ability-q .name').textContent = 'Blizzard';
+            document.querySelector('#ability-f .name').textContent = 'Flame Wave';
+            document.querySelector('#ability-e .name').textContent = 'Burn Aura';
+            document.querySelector('#ability-r .name').textContent = 'Backstep';
+        } else {
+            document.querySelector('#ability-q .name').textContent = 'Cleave';
+            document.querySelector('#ability-f .name').textContent = 'Bladestorm';
+            document.querySelector('#ability-e .name').textContent = 'Parry';
+            document.querySelector('#ability-r .name').textContent = 'Charge';
+        }
     }
 
     returnToMenu() {
@@ -279,7 +323,12 @@ export class Game {
     }
 
     setupPlayer() {
-        this.player = new Player(this.scene, this);
+        // Create player based on selected class
+        if (this.selectedClass === 'mage') {
+            this.player = new Mage(this.scene, this);
+        } else {
+            this.player = new Player(this.scene, this);
+        }
         this.player.position.set(0, 0, 0);
     }
 
@@ -628,12 +677,20 @@ export class Game {
             targetFrame.style.display = 'none';
         }
 
-        // Ability cooldowns
-        this.updateAbilityCooldown('q', this.player.abilities.cleave);
-        this.updateAbilityCooldown('f', this.player.abilities.bladestorm);
-        this.updateAbilityCooldown('e', this.player.abilities.parry);
-        this.updateAbilityCooldown('r', this.player.abilities.charge);
-        this.updateAbilityCooldown('1', this.player.abilities.potion);
+        // Ability cooldowns - different for each class
+        if (this.selectedClass === 'mage') {
+            this.updateAbilityCooldown('q', this.player.abilities.blizzard);
+            this.updateAbilityCooldown('f', this.player.abilities.flameWave);
+            this.updateAbilityCooldown('e', this.player.abilities.burnAura);
+            this.updateAbilityCooldown('r', this.player.abilities.backstep);
+            this.updateAbilityCooldown('1', this.player.abilities.potion);
+        } else {
+            this.updateAbilityCooldown('q', this.player.abilities.cleave);
+            this.updateAbilityCooldown('f', this.player.abilities.bladestorm);
+            this.updateAbilityCooldown('e', this.player.abilities.parry);
+            this.updateAbilityCooldown('r', this.player.abilities.charge);
+            this.updateAbilityCooldown('1', this.player.abilities.potion);
+        }
     }
 
     updateAbilityCooldown(key, ability) {

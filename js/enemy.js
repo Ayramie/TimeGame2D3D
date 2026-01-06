@@ -87,6 +87,16 @@ export class Enemy {
             return;
         }
 
+        // Slow effect timer (from mage blizzard)
+        if (this.slowTimer && this.slowTimer > 0) {
+            this.slowTimer -= deltaTime;
+            if (this.slowTimer <= 0 && this.originalMoveSpeed) {
+                // Restore original speed when slow expires
+                this.moveSpeed = this.originalMoveSpeed;
+                this.originalMoveSpeed = null;
+            }
+        }
+
         // Attack cooldown
         if (this.attackCooldown > 0) {
             this.attackCooldown -= deltaTime;

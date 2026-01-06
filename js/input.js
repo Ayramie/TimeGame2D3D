@@ -1,3 +1,5 @@
+import * as THREE from 'three';
+
 export class InputManager {
     constructor(canvas, game) {
         this.canvas = canvas;
@@ -63,19 +65,52 @@ export class InputManager {
                 break;
 
             case 'q':
-                this.game.player.useCleave(this.game.enemies);
+                // Q ability - Cleave (Warrior) / Blizzard (Mage)
+                if (this.game.selectedClass === 'mage') {
+                    // Blizzard targets the targeted enemy's position, or in front of player
+                    let targetPos;
+                    if (this.game.player.targetEnemy && this.game.player.targetEnemy.isAlive) {
+                        targetPos = this.game.player.targetEnemy.position.clone();
+                    } else {
+                        // Default to in front of player
+                        const forward = new THREE.Vector3(
+                            Math.sin(this.game.player.rotation),
+                            0,
+                            Math.cos(this.game.player.rotation)
+                        );
+                        targetPos = this.game.player.position.clone().add(forward.multiplyScalar(8));
+                    }
+                    this.game.player.useBlizzard(targetPos);
+                } else {
+                    this.game.player.useCleave(this.game.enemies);
+                }
                 break;
 
             case 'f':
-                this.game.player.useBladestorm();
+                // F ability - Bladestorm (Warrior) / Flame Wave (Mage)
+                if (this.game.selectedClass === 'mage') {
+                    this.game.player.useFlameWave(this.game.enemies);
+                } else {
+                    this.game.player.useBladestorm();
+                }
                 break;
 
             case 'e':
-                this.game.player.useParry();
+                // E ability - Parry (Warrior) / Burn Aura (Mage)
+                if (this.game.selectedClass === 'mage') {
+                    this.game.player.toggleBurnAura();
+                } else {
+                    this.game.player.useParry();
+                }
                 break;
 
             case 'r':
-                this.game.player.useCharge();
+                // R ability - Charge (Warrior) / Backstep (Mage)
+                if (this.game.selectedClass === 'mage') {
+                    this.game.player.useBackstep();
+                } else {
+                    this.game.player.useCharge();
+                }
                 break;
 
             case '1':

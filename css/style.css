@@ -263,3 +263,49 @@ body {
     border-color: #6a6a8a;
     background: rgba(0, 0, 0, 0.7);
 }
+
+/* Class Selection */
+.class-selection {
+    margin-bottom: 40px;
+    text-align: center;
+}
+
+.class-selection h3 {
+    color: #aaa;
+    font-size: 18px;
+    margin-bottom: 15px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+.class-buttons {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+}
+
+.class-btn {
+    width: 150px;
+    padding: 15px 25px;
+    font-size: 18px;
+    font-weight: bold;
+    color: #ccc;
+    background: linear-gradient(145deg, #2a2a4a, #1a1a2e);
+    border: 3px solid #4a4a6a;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.class-btn:hover {
+    background: linear-gradient(145deg, #3a3a5a, #2a2a4a);
+    border-color: #6a6a8a;
+    transform: scale(1.05);
+}
+
+.class-btn.selected {
+    border-color: #88aaff;
+    color: #fff;
+    box-shadow: 0 0 20px rgba(100, 150, 255, 0.4);
+    background: linear-gradient(145deg, #3a3a6a, #2a2a4e);
+}
