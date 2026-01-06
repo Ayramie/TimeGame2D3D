@@ -158,19 +158,19 @@ export class DungeonBuilder {
     }
 
     generateWalls() {
+        // Only generate walls for cardinal neighbors (not diagonals)
+        // This prevents invisible blocking walls at corners
+        const cardinalDirs = [[0, -1], [0, 1], [-1, 0], [1, 0]];
+
         for (let y = 0; y < this.height; y++) {
             for (let x = 0; x < this.width; x++) {
-                if (this.tiles[y][x] === DungeonTile.FLOOR) {
-                    // Check all 8 neighbors
-                    for (let dy = -1; dy <= 1; dy++) {
-                        for (let dx = -1; dx <= 1; dx++) {
-                            if (dx === 0 && dy === 0) continue;
-                            const nx = x + dx;
-                            const ny = y + dy;
-                            if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
-                                if (this.tiles[ny][nx] === DungeonTile.EMPTY) {
-                                    this.tiles[ny][nx] = DungeonTile.WALL;
-                                }
+                if (this.isFloorTile(this.tiles[y][x])) {
+                    for (const [dx, dy] of cardinalDirs) {
+                        const nx = x + dx;
+                        const ny = y + dy;
+                        if (nx >= 0 && nx < this.width && ny >= 0 && ny < this.height) {
+                            if (this.tiles[ny][nx] === DungeonTile.EMPTY) {
+                                this.tiles[ny][nx] = DungeonTile.WALL;
                             }
                         }
                     }
@@ -294,14 +294,14 @@ export class DungeonBuilder {
 
         const model = this.models.wall;
         if (!model) {
-            // Fallback: simple box
-            const geometry = new THREE.BoxGeometry(this.tileSize, this.tileSize * 1.5, this.tileSize);
+            // Fallback: simple low box (knee-high walls for visibility)
+            const geometry = new THREE.BoxGeometry(this.tileSize, this.tileSize * 0.4, this.tileSize);
             const material = new THREE.MeshStandardMaterial({
                 color: 0x666666,
                 roughness: 0.8
             });
             const wall = new THREE.Mesh(geometry, material);
-            wall.position.set(worldX, this.tileSize * 0.75, worldZ);
+            wall.position.set(worldX, this.tileSize * 0.2, worldZ);
             wall.castShadow = true;
             wall.receiveShadow = true;
             this.scene.add(wall);
@@ -315,7 +315,8 @@ export class DungeonBuilder {
         const instance = model.clone();
         instance.position.set(worldX, 0, worldZ);
         instance.rotation.y = rotation;
-        instance.scale.setScalar(this.tileSize / 2);
+        // Reduced scale for lower walls
+        instance.scale.set(this.tileSize / 2, this.tileSize / 4, this.tileSize / 2);
         instance.traverse(child => {
             if (child.isMesh) {
                 child.castShadow = true;
