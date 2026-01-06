@@ -53,6 +53,9 @@ export class InputManager {
             this.keys[key] = true;
         }
 
+        // Only handle game inputs when playing
+        if (this.game.gameState !== 'playing') return;
+
         // Handle special keys
         switch (key) {
             case 'tab':

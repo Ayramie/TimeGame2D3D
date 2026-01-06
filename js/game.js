@@ -3,7 +3,7 @@ import { Player } from './player.js';
 import { Mage } from './mage.js';
 import { ThirdPersonCamera } from './camera.js';
 import { InputManager } from './input.js';
-import { Enemy, SlimeEnemy, GreaterSlimeEnemy, SlimeBoss } from './enemy.js';
+import { Enemy, SlimeEnemy, GreaterSlimeEnemy, SlimeBoss, SkeletonEnemy } from './enemy.js';
 import { EffectsManager } from './effects.js';
 import { ParticleSystem } from './particles.js';
 
@@ -325,9 +325,9 @@ export class Game {
     setupPlayer() {
         // Create player based on selected class
         if (this.selectedClass === 'mage') {
-            this.player = new Mage(this.scene, this);
+            this.player = new Mage(this.scene, this, 'mage');
         } else {
-            this.player = new Player(this.scene, this);
+            this.player = new Player(this.scene, this, 'warrior');
         }
         this.player.position.set(0, 0, 0);
     }
@@ -356,12 +356,25 @@ export class Game {
             // Mobbing mode - spawn slimes around the arena
             const slimePositions = [
                 [8, 0, 5], [10, 0, -8], [-12, 0, 6], [-8, 0, -10],
-                [15, 0, 12], [-15, 0, -15], [20, 0, 0], [-5, 0, 20]
             ];
 
             for (const [x, y, z] of slimePositions) {
                 const slime = new SlimeEnemy(this.scene, x, z);
                 this.enemies.push(slime);
+            }
+
+            // Spawn skeleton enemies with 3D models
+            const skeletonTypes = ['warrior', 'mage', 'minion', 'rogue'];
+            const skeletonPositions = [
+                [15, 0, 12], [-15, 0, -15], [20, 0, 0], [-5, 0, 20]
+            ];
+
+            for (let i = 0; i < skeletonPositions.length; i++) {
+                const [x, y, z] = skeletonPositions[i];
+                const skeletonType = skeletonTypes[i % skeletonTypes.length];
+                const skeleton = new SkeletonEnemy(this.scene, x, z, skeletonType);
+                skeleton.name = `Skeleton ${skeletonType.charAt(0).toUpperCase() + skeletonType.slice(1)}`;
+                this.enemies.push(skeleton);
             }
 
             // Spawn a Greater Slime

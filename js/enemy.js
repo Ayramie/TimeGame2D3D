@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { EnemyModelController } from './enemyModel.js';
 
 export class Enemy {
     constructor(scene, x, z) {
@@ -376,6 +377,231 @@ export class GreaterSlimeEnemy extends Enemy {
         this.mesh.scale.y = 0.6 * squash;
         this.mesh.scale.x = 1 + bounce * 0.15;
         this.mesh.scale.z = 1 + bounce * 0.15;
+    }
+}
+
+export class SkeletonEnemy extends Enemy {
+    constructor(scene, x, z, skeletonType = 'warrior') {
+        super(scene, x, z);
+
+        this.name = 'Skeleton';
+        this.skeletonType = skeletonType;
+        this.maxHealth = 150;
+        this.health = this.maxHealth;
+        this.attackDamage = 12;
+        this.moveSpeed = 3;
+        this.aggroRange = 12;
+
+        // Model controller for animated skeleton
+        this.modelController = new EnemyModelController(scene, skeletonType);
+        this.useAnimatedModel = false;
+        this.modelLoading = true;
+
+        // Load the model
+        this.loadModel();
+    }
+
+    async loadModel() {
+        try {
+            const success = await this.modelController.load();
+            if (success) {
+                this.useAnimatedModel = true;
+                // Hide fallback mesh if model loaded
+                if (this.mesh) {
+                    this.mesh.visible = false;
+                }
+                console.log('Skeleton model loaded:', this.skeletonType);
+            }
+        } catch (error) {
+            console.warn('Failed to load skeleton model:', error);
+        }
+        this.modelLoading = false;
+    }
+
+    createMesh() {
+        // Fallback skeleton mesh (simple humanoid shape)
+        this.mesh = new THREE.Group();
+
+        const boneMaterial = new THREE.MeshStandardMaterial({
+            color: 0xccccaa,
+            roughness: 0.8
+        });
+
+        // Body
+        const bodyGeometry = new THREE.CapsuleGeometry(0.3, 0.8, 4, 8);
+        const body = new THREE.Mesh(bodyGeometry, boneMaterial);
+        body.position.y = 1.2;
+        this.mesh.add(body);
+
+        // Head (skull)
+        const headGeometry = new THREE.SphereGeometry(0.25, 8, 6);
+        const head = new THREE.Mesh(headGeometry, boneMaterial);
+        head.position.y = 1.8;
+        head.scale.y = 1.2;
+        this.mesh.add(head);
+
+        // Eyes (dark sockets)
+        const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0x220000 });
+        const eyeGeometry = new THREE.SphereGeometry(0.06, 6, 4);
+
+        const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+        leftEye.position.set(-0.08, 1.82, 0.2);
+        this.mesh.add(leftEye);
+
+        const rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+        rightEye.position.set(0.08, 1.82, 0.2);
+        this.mesh.add(rightEye);
+
+        this.mesh.position.copy(this.position);
+        this.mesh.castShadow = true;
+
+        this.scene.add(this.mesh);
+        this.healthBarHeight = 2.2;
+    }
+
+    update(deltaTime, player, camera) {
+        if (!this.isAlive) return;
+
+        // Stun
+        if (this.stunTime > 0) {
+            this.stunTime -= deltaTime;
+            this.updateVisuals(deltaTime, camera, false);
+            return;
+        }
+
+        // Attack cooldown
+        if (this.attackCooldown > 0) {
+            this.attackCooldown -= deltaTime;
+        }
+
+        // Check aggro
+        const distToPlayer = this.position.distanceTo(player.position);
+        if (distToPlayer < this.aggroRange) {
+            this.isAggro = true;
+        }
+
+        // Move toward player if aggro
+        let isMoving = false;
+        if (this.isAggro && distToPlayer > this.attackRange) {
+            const dir = new THREE.Vector3()
+                .subVectors(player.position, this.position)
+                .normalize();
+            dir.y = 0;
+
+            this.position.add(dir.multiplyScalar(this.moveSpeed * deltaTime));
+            isMoving = true;
+
+            // Face player
+            this.rotation = Math.atan2(dir.x, dir.z);
+        }
+
+        this.updateVisuals(deltaTime, camera, isMoving);
+    }
+
+    updateVisuals(deltaTime, camera, isMoving) {
+        // Update animated model
+        if (this.useAnimatedModel && this.modelController) {
+            this.modelController.setPosition(this.position.x, this.position.y, this.position.z);
+            this.modelController.setRotation(this.rotation || 0);
+            this.modelController.update(deltaTime, isMoving);
+        } else if (this.mesh) {
+            // Update fallback mesh
+            this.mesh.position.copy(this.position);
+            if (this.rotation !== undefined) {
+                this.mesh.rotation.y = this.rotation;
+            }
+        }
+
+        // Update target ring
+        if (this.targetRing) {
+            this.targetRing.position.x = this.position.x;
+            this.targetRing.position.z = this.position.z;
+        }
+
+        // Update health bar
+        this.updateHealthBar(camera);
+    }
+
+    tryAttack(player) {
+        if (this.attackCooldown > 0 || this.stunTime > 0) return false;
+
+        // Play attack animation
+        if (this.useAnimatedModel && this.modelController) {
+            this.modelController.playAttack();
+        }
+
+        // Check if player can parry
+        if (player.tryParry && player.tryParry(this)) {
+            this.attackCooldown = this.attackCooldownMax;
+            return false;
+        }
+
+        player.takeDamage(this.attackDamage);
+        this.attackCooldown = this.attackCooldownMax;
+        return true;
+    }
+
+    takeDamage(amount, source) {
+        this.health -= amount;
+        this.isAggro = true;
+
+        // Play hit animation
+        if (this.useAnimatedModel && this.modelController) {
+            this.modelController.playHit();
+        }
+
+        // Flash red on fallback mesh
+        if (!this.useAnimatedModel && this.mesh && this.mesh.children[0]?.material) {
+            const material = this.mesh.children[0].material;
+            const originalColor = material.color.getHex();
+            material.color.setHex(0xff0000);
+            setTimeout(() => {
+                if (this.mesh && this.mesh.children[0]?.material) {
+                    material.color.setHex(originalColor);
+                }
+            }, 100);
+        }
+
+        this.lastHitPosition = this.position.clone();
+        this.lastHitPosition.y += 1;
+        this.lastHitAmount = amount;
+
+        if (this.health <= 0) {
+            this.die();
+        }
+    }
+
+    die() {
+        this.isAlive = false;
+        this.deathPosition = this.position.clone();
+        this.deathPosition.y += 1;
+        this.justDied = true;
+
+        // Play death animation
+        if (this.useAnimatedModel && this.modelController) {
+            this.modelController.playDeath();
+            // Delay removal to let animation play
+            setTimeout(() => {
+                if (this.modelController) {
+                    this.modelController.dispose();
+                }
+            }, 2000);
+        }
+
+        // Remove fallback mesh
+        if (this.mesh) {
+            this.scene.remove(this.mesh);
+        }
+
+        // Remove health bar
+        if (this.healthBarGroup) {
+            this.scene.remove(this.healthBarGroup);
+        }
+
+        // Remove target ring
+        if (this.targetRing) {
+            this.scene.remove(this.targetRing);
+        }
     }
 }
 

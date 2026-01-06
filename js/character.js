@@ -1,9 +1,10 @@
 import * as THREE from 'three';
-import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 export class CharacterController {
-    constructor(scene) {
+    constructor(scene, characterClass = 'warrior') {
         this.scene = scene;
+        this.characterClass = characterClass;
         this.model = null;
         this.mixer = null;
         this.animations = {};
@@ -16,16 +17,28 @@ export class CharacterController {
         this.isAttacking = false;
         this.attackQueue = [];
 
-        // Model scale (Mixamo models are usually huge)
-        this.scale = 0.01;
+        // Model scale (KayKit models are reasonably sized)
+        this.scale = 0.5;
     }
 
     async load() {
-        const loader = new FBXLoader();
+        const loader = new GLTFLoader();
 
-        // Load main character model
+        // Select character model based on class
+        const characterModels = {
+            warrior: './assets/models/Knight.glb',
+            mage: './assets/models/Mage.glb',
+            barbarian: './assets/models/Barbarian.glb',
+            ranger: './assets/models/Ranger.glb',
+            rogue: './assets/models/Rogue.glb'
+        };
+
+        const modelPath = characterModels[this.characterClass] || characterModels.warrior;
+
         try {
-            this.model = await this.loadFBX(loader, './models/character.fbx');
+            // Load character model
+            const gltf = await this.loadGLTF(loader, modelPath);
+            this.model = gltf.scene;
             this.model.scale.setScalar(this.scale);
 
             // Setup materials for the character
@@ -33,7 +46,6 @@ export class CharacterController {
                 if (child.isMesh) {
                     child.castShadow = true;
                     child.receiveShadow = true;
-                    // Make materials less shiny
                     if (child.material) {
                         if (Array.isArray(child.material)) {
                             child.material.forEach(m => this.fixMaterial(m));
@@ -47,7 +59,7 @@ export class CharacterController {
             // Create animation mixer
             this.mixer = new THREE.AnimationMixer(this.model);
 
-            // Load animations
+            // Load animations from animation GLB files
             await this.loadAnimations(loader);
 
             this.scene.add(this.model);
@@ -56,7 +68,7 @@ export class CharacterController {
             // Start with idle animation
             this.playAnimation('idle', true);
 
-            console.log('Character loaded successfully');
+            console.log('Character loaded successfully:', this.characterClass);
             return true;
         } catch (error) {
             console.error('Failed to load character:', error);
@@ -65,25 +77,22 @@ export class CharacterController {
     }
 
     fixMaterial(material) {
-        // Fix transparency - FBX models often come with unwanted transparency
-        material.transparent = false;
-        material.opacity = 1.0;
-        material.alphaTest = 0;
-
-        if (material.isMeshPhongMaterial || material.isMeshStandardMaterial) {
-            material.shininess = 10;
-            material.roughness = 0.8;
-            material.metalness = 0.1;
+        // Adjust material properties for better look
+        if (material.isMeshStandardMaterial) {
+            material.roughness = 0.7;
+            material.metalness = 0.2;
         }
     }
 
-    loadFBX(loader, path) {
+    loadGLTF(loader, path) {
         return new Promise((resolve, reject) => {
             loader.load(
                 path,
-                (object) => resolve(object),
+                (gltf) => resolve(gltf),
                 (xhr) => {
-                    this.loadProgress = (xhr.loaded / xhr.total) * 100;
+                    if (xhr.total > 0) {
+                        this.loadProgress = (xhr.loaded / xhr.total) * 100;
+                    }
                 },
                 (error) => reject(error)
             );
@@ -92,83 +101,108 @@ export class CharacterController {
 
     // Remove root motion from animation clips to prevent character moving on its own
     removeRootMotion(clip) {
-        // Filter out position tracks on root/hips bones
         const filteredTracks = clip.tracks.filter(track => {
-            // Remove position tracks on root bones (Mixamo uses "mixamorigHips")
             const isPositionTrack = track.name.endsWith('.position');
-            const isRootBone = track.name.includes('Hips') ||
-                track.name.includes('Root') ||
-                track.name.startsWith('mixamorig');
+            const isRootBone = track.name.includes('Root') ||
+                              track.name.includes('Hips') ||
+                              track.name.includes('Armature');
 
-            // Keep the track unless it's a position track on a root bone
-            // But allow Y position for jumps (vertical movement)
+            // Remove position tracks on root bones
             if (isPositionTrack && isRootBone) {
-                // Check if this is specifically the hips position
-                if (track.name.includes('Hips.position')) {
-                    return false; // Remove hips position track entirely
-                }
+                return false;
             }
             return true;
         });
 
-        // Create new clip with filtered tracks
         return new THREE.AnimationClip(clip.name, clip.duration, filteredTracks);
     }
 
     async loadAnimations(loader) {
-        const animationFiles = {
-            idle: './models/animations/sword and shield idle.fbx',
-            run: './models/animations/sword and shield run.fbx',
-            walk: './models/animations/sword and shield walk.fbx',
-            attack1: './models/animations/sword and shield slash.fbx',
-            attack2: './models/animations/sword and shield slash (2).fbx',
-            attack3: './models/animations/sword and shield slash (3).fbx',
-            attack4: './models/animations/sword and shield attack.fbx',
-            block: './models/animations/sword and shield block.fbx',
-            blockIdle: './models/animations/sword and shield block idle.fbx',
-            death: './models/animations/sword and shield death.fbx',
-            impact: './models/animations/sword and shield impact.fbx',
-            jump: './models/animations/sword and shield jump.fbx',
-            strafe: './models/animations/sword and shield strafe.fbx',
-            powerUp: './models/animations/sword and shield power up.fbx'
+        // KayKit animation files
+        const animationFiles = [
+            './assets/models/Rig_Medium_General.glb',
+            './assets/models/Rig_Medium_MovementBasic.glb'
+        ];
+
+        // Animation name mappings (KayKit animation names to our names)
+        const animationMappings = {
+            // Movement animations
+            'Idle': 'idle',
+            'Walk': 'walk',
+            'Run': 'run',
+            'Run_Strafe_Left': 'strafeLeft',
+            'Run_Strafe_Right': 'strafeRight',
+            'Jump': 'jump',
+            'Fall': 'fall',
+            'Land': 'land',
+            // Combat animations
+            'Attack_1H': 'attack1',
+            'Attack_2H': 'attack2',
+            'Attack_Stab': 'attack3',
+            'Attack_Kick': 'attack4',
+            'Block': 'block',
+            'Block_Idle': 'blockIdle',
+            'Hit': 'impact',
+            'Death': 'death',
+            // Additional
+            'Interact': 'interact',
+            'Roll': 'roll',
+            'Cheer': 'powerUp'
         };
 
-        // Load all animations in parallel for faster loading
-        const loadPromises = Object.entries(animationFiles).map(async ([name, path]) => {
+        // Load all animation files
+        for (const animFile of animationFiles) {
             try {
-                const anim = await this.loadFBX(loader, path);
-                return { name, anim };
+                const gltf = await this.loadGLTF(loader, animFile);
+
+                if (gltf.animations && gltf.animations.length > 0) {
+                    console.log(`Loaded ${gltf.animations.length} animations from ${animFile}`);
+
+                    for (const clip of gltf.animations) {
+                        // Try to map the animation name
+                        let animName = animationMappings[clip.name] || clip.name.toLowerCase();
+
+                        // Skip if we already have this animation
+                        if (this.animations[animName]) continue;
+
+                        // Remove root motion
+                        const cleanClip = this.removeRootMotion(clip);
+                        cleanClip.name = animName;
+
+                        const action = this.mixer.clipAction(cleanClip);
+
+                        // Configure animation properties
+                        if (['idle', 'walk', 'run', 'blockIdle', 'strafeLeft', 'strafeRight'].includes(animName)) {
+                            action.setLoop(THREE.LoopRepeat);
+                        } else if (animName.startsWith('attack') || animName === 'impact') {
+                            action.setLoop(THREE.LoopOnce);
+                            action.clampWhenFinished = true;
+                        } else if (animName === 'death') {
+                            action.setLoop(THREE.LoopOnce);
+                            action.clampWhenFinished = true;
+                        } else if (['jump', 'block', 'roll', 'land'].includes(animName)) {
+                            action.setLoop(THREE.LoopOnce);
+                            action.clampWhenFinished = false;
+                        } else {
+                            action.setLoop(THREE.LoopOnce);
+                        }
+
+                        this.animations[animName] = action;
+                        console.log(`  - Registered animation: ${animName} (from ${clip.name})`);
+                    }
+                }
             } catch (error) {
-                console.warn(`Could not load animation ${name}:`, error.message);
-                return { name, anim: null };
+                console.warn(`Could not load animation file ${animFile}:`, error.message);
             }
-        });
+        }
 
-        const results = await Promise.all(loadPromises);
-
-        // Process loaded animations
-        for (const { name, anim } of results) {
-            if (anim && anim.animations && anim.animations.length > 0) {
-                let clip = anim.animations[0];
-
-                // Remove root motion (position tracks on hips) to prevent rubberbanding
-                clip = this.removeRootMotion(clip);
-
-                clip.name = name;
-                this.animations[name] = this.mixer.clipAction(clip);
-
-                // Configure animation properties
-                if (name === 'idle' || name === 'run' || name === 'walk' || name === 'blockIdle' || name === 'strafe') {
-                    this.animations[name].setLoop(THREE.LoopRepeat);
-                } else if (name.startsWith('attack') || name === 'impact') {
-                    this.animations[name].setLoop(THREE.LoopOnce);
-                    this.animations[name].clampWhenFinished = true;
-                } else if (name === 'death') {
-                    this.animations[name].setLoop(THREE.LoopOnce);
-                    this.animations[name].clampWhenFinished = true;
-                } else if (name === 'jump' || name === 'block') {
-                    this.animations[name].setLoop(THREE.LoopOnce);
-                    this.animations[name].clampWhenFinished = false;
+        // Also check if the character model itself has embedded animations
+        if (this.model && this.model.animations) {
+            for (const clip of this.model.animations) {
+                const animName = clip.name.toLowerCase();
+                if (!this.animations[animName]) {
+                    const cleanClip = this.removeRootMotion(clip);
+                    this.animations[animName] = this.mixer.clipAction(cleanClip);
                 }
             }
         }
@@ -177,6 +211,8 @@ export class CharacterController {
         this.mixer.addEventListener('finished', (e) => {
             this.onAnimationFinished(e.action);
         });
+
+        console.log('Available animations:', Object.keys(this.animations));
     }
 
     onAnimationFinished(action) {
@@ -191,11 +227,9 @@ export class CharacterController {
                 const nextAttack = this.attackQueue.shift();
                 this.playAttack(nextAttack);
             } else {
-                // Return to idle or movement
                 this.returnToDefaultAnimation();
             }
-        } else if (animName === 'jump' || animName === 'block' || animName === 'powerUp') {
-            // Return to idle or movement after these animations
+        } else if (['jump', 'block', 'powerUp', 'roll', 'land'].includes(animName)) {
             this.returnToDefaultAnimation();
         }
     }
@@ -203,14 +237,13 @@ export class CharacterController {
     returnToDefaultAnimation() {
         this.isAttacking = false;
         this.attackStartTime = null;
-        if (this.animationState === 'run' || this.animationState === 'walk' || this.animationState === 'strafe') {
+        if (['run', 'walk', 'strafeLeft', 'strafeRight'].includes(this.animationState)) {
             this.playAnimation(this.animationState, true);
         } else {
             this.playAnimation('idle', true);
         }
     }
 
-    // Force cancel current animation and return to default
     cancelAnimation() {
         this.isAttacking = false;
         this.attackStartTime = null;
@@ -220,8 +253,12 @@ export class CharacterController {
 
     playAnimation(name, loop = false, crossfadeDuration = 0.2) {
         if (!this.animations[name]) {
-            console.warn(`Animation ${name} not found`);
-            return;
+            // Try fallback animations
+            if (name === 'strafe') name = 'strafeLeft';
+            if (!this.animations[name]) {
+                console.warn(`Animation ${name} not found`);
+                return;
+            }
         }
 
         const newAction = this.animations[name];
@@ -231,7 +268,6 @@ export class CharacterController {
         }
 
         if (this.currentAction) {
-            // Crossfade from current to new
             newAction.reset();
             newAction.setEffectiveTimeScale(1);
             newAction.setEffectiveWeight(1);
@@ -251,7 +287,6 @@ export class CharacterController {
 
     playAttack(attackNum = 1) {
         if (this.isAttacking) {
-            // Queue the attack
             if (this.attackQueue.length < 2) {
                 this.attackQueue.push(attackNum);
             }
@@ -278,7 +313,7 @@ export class CharacterController {
     playImpact() {
         if (this.animations.impact && !this.isAttacking) {
             this.playAnimation('impact', false, 0.05);
-            this.isAttacking = true; // Prevent movement during impact
+            this.isAttacking = true;
         }
     }
 
@@ -292,17 +327,21 @@ export class CharacterController {
         }
     }
 
+    playRoll() {
+        if (this.animations.roll && !this.isAttacking) {
+            this.playAnimation('roll', false, 0.1);
+        }
+    }
+
     playPowerUp() {
         if (this.animations.powerUp) {
             this.playAnimation('powerUp', false, 0.2);
         }
     }
 
-    // Called every frame
     update(deltaTime, isMoving, isRunning = true, isGrounded = true) {
         if (!this.isLoaded) return;
 
-        // Update animation mixer
         if (this.mixer) {
             this.mixer.update(deltaTime);
         }
@@ -318,7 +357,7 @@ export class CharacterController {
             }
         }
 
-        // Allow movement to interrupt non-critical animations
+        // Update movement animations
         if (isMoving && !this.isAttacking) {
             if (isRunning && this.animations.run) {
                 this.playAnimation('run', true);
@@ -330,7 +369,6 @@ export class CharacterController {
         }
     }
 
-    // Position and rotation setters
     setPosition(x, y, z) {
         if (this.model) {
             this.model.position.set(x, y, z);
@@ -347,7 +385,6 @@ export class CharacterController {
         return this.model ? this.model.position : new THREE.Vector3();
     }
 
-    // Cleanup
     dispose() {
         if (this.mixer) {
             this.mixer.stopAllAction();

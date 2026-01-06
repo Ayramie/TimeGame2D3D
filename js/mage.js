@@ -2,9 +2,10 @@ import * as THREE from 'three';
 import { CharacterController } from './character.js';
 
 export class Mage {
-    constructor(scene, game) {
+    constructor(scene, game, characterClass = 'mage') {
         this.scene = scene;
         this.game = game;
+        this.characterClass = characterClass;
         this.position = new THREE.Vector3(0, 0, 0);
         this.velocity = new THREE.Vector3(0, 0, 0);
         this.rotation = 0;
@@ -73,7 +74,7 @@ export class Mage {
         this.groundEffects = [];
 
         // Character controller for animated model
-        this.character = new CharacterController(scene);
+        this.character = new CharacterController(scene, this.characterClass);
         this.useAnimatedCharacter = false;
         this.characterLoading = false;
 
