@@ -48,13 +48,13 @@ export class InputManager {
     onKeyDown(e) {
         const key = e.key.toLowerCase();
 
-        // Movement keys
+        // Movement keys (always track)
         if (key in this.keys) {
             this.keys[key] = true;
         }
 
-        // Only handle game inputs when playing
-        if (this.game.gameState !== 'playing') return;
+        // Only handle ability/action inputs when playing
+        if (this.game.gameState !== 'playing' || !this.game.player) return;
 
         // Handle special keys
         switch (key) {
@@ -83,7 +83,9 @@ export class InputManager {
                         );
                         targetPos = this.game.player.position.clone().add(forward.multiplyScalar(8));
                     }
-                    this.game.player.useBlizzard(targetPos);
+                    console.log('Mage Q: Blizzard at', targetPos);
+                    const result = this.game.player.useBlizzard(targetPos);
+                    console.log('Blizzard result:', result);
                 } else {
                     this.game.player.useCleave(this.game.enemies);
                 }
@@ -92,7 +94,9 @@ export class InputManager {
             case 'f':
                 // F ability - Bladestorm (Warrior) / Flame Wave (Mage)
                 if (this.game.selectedClass === 'mage') {
-                    this.game.player.useFlameWave(this.game.enemies);
+                    console.log('Mage F: Flame Wave');
+                    const result = this.game.player.useFlameWave(this.game.enemies);
+                    console.log('Flame Wave result:', result);
                 } else {
                     this.game.player.useBladestorm();
                 }
@@ -101,7 +105,9 @@ export class InputManager {
             case 'e':
                 // E ability - Parry (Warrior) / Burn Aura (Mage)
                 if (this.game.selectedClass === 'mage') {
-                    this.game.player.toggleBurnAura();
+                    console.log('Mage E: Toggle Burn Aura');
+                    const result = this.game.player.toggleBurnAura();
+                    console.log('Burn Aura result:', result, 'active:', this.game.player.abilities.burnAura.isActive);
                 } else {
                     this.game.player.useParry();
                 }
@@ -110,7 +116,9 @@ export class InputManager {
             case 'r':
                 // R ability - Charge (Warrior) / Backstep (Mage)
                 if (this.game.selectedClass === 'mage') {
-                    this.game.player.useBackstep();
+                    console.log('Mage R: Backstep');
+                    const result = this.game.player.useBackstep();
+                    console.log('Backstep result:', result);
                 } else {
                     this.game.player.useCharge();
                 }

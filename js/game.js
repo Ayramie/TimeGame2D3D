@@ -6,6 +6,7 @@ import { InputManager } from './input.js';
 import { Enemy, SlimeEnemy, GreaterSlimeEnemy, SlimeBoss, SkeletonEnemy } from './enemy.js';
 import { EffectsManager } from './effects.js';
 import { ParticleSystem } from './particles.js';
+import { EnvironmentLoader } from './environment.js';
 
 export class Game {
     constructor(canvas) {
@@ -183,6 +184,12 @@ export class Game {
         this.enemies = [];
         this.projectiles = [];
         this.groundHazards = [];
+
+        // Dispose environment
+        if (this.environment) {
+            this.environment.dispose();
+            this.environment = null;
+        }
     }
 
     setupScene() {
@@ -231,11 +238,24 @@ export class Game {
         arena.position.y = 0.03;
         this.scene.add(arena);
 
-        // Add some decorative elements
+        // Add some decorative elements - use KayKit assets if available
         this.addScenery();
     }
 
-    addScenery() {
+    async addScenery() {
+        // Try to load KayKit environment assets
+        this.environment = new EnvironmentLoader(this.scene);
+        try {
+            await this.environment.loadAllModels();
+            this.environment.createArenaEnvironment();
+            console.log('KayKit environment loaded');
+        } catch (error) {
+            console.warn('Failed to load KayKit assets, using fallback scenery');
+            this.addFallbackScenery();
+        }
+    }
+
+    addFallbackScenery() {
         // Simple trees as cylinders with sphere tops
         const treePositions = [
             [-15, 10], [-20, -5], [25, 15], [30, -20], [-25, -25],
