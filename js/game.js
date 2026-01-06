@@ -251,8 +251,8 @@ export class Game {
         const sun = new THREE.DirectionalLight(0xfff4e5, 1.2);
         sun.position.set(50, 80, 30);
         sun.castShadow = true;
-        sun.shadow.mapSize.width = 4096;
-        sun.shadow.mapSize.height = 4096;
+        sun.shadow.mapSize.width = 2048;
+        sun.shadow.mapSize.height = 2048;
         sun.shadow.camera.near = 0.5;
         sun.shadow.camera.far = 250;
         sun.shadow.camera.left = -60;

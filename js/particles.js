@@ -5,7 +5,7 @@ export class ParticleSystem {
     constructor(scene) {
         this.scene = scene;
         this.particles = [];
-        this.maxParticles = 500;
+        this.maxParticles = 200;
 
         // Generate textures
         this.textures = {

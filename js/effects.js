@@ -16,8 +16,18 @@ export class EffectsManager {
             }
 
             if (effect.life <= 0) {
-                if (effect.mesh) this.scene.remove(effect.mesh);
-                if (effect.group) this.scene.remove(effect.group);
+                if (effect.mesh) {
+                    this.scene.remove(effect.mesh);
+                    if (effect.mesh.geometry) effect.mesh.geometry.dispose();
+                    if (effect.mesh.material) effect.mesh.material.dispose();
+                }
+                if (effect.group) {
+                    effect.group.traverse((child) => {
+                        if (child.geometry) child.geometry.dispose();
+                        if (child.material) child.material.dispose();
+                    });
+                    this.scene.remove(effect.group);
+                }
                 this.effects.splice(i, 1);
             }
         }
