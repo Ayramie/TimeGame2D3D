@@ -58,11 +58,16 @@ export class Enemy {
             color: 0xff4444,
             side: THREE.DoubleSide,
             transparent: true,
-            opacity: 0.8
+            opacity: 0.8,
+            depthWrite: false,
+            depthTest: true,
+            polygonOffset: true,
+            polygonOffsetFactor: -4,
+            polygonOffsetUnits: -4
         });
         this.targetRing = new THREE.Mesh(ringGeometry, ringMaterial);
         this.targetRing.rotation.x = -Math.PI / 2; // Lay flat
-        this.targetRing.position.y = 0.05;
+        this.targetRing.position.y = 0.3;
         this.targetRing.visible = false;
         this.scene.add(this.targetRing);
     }
