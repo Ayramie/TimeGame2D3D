@@ -681,7 +681,22 @@ export class Player extends PlayerBase {
 
         if (dist > 1.5) {
             dir.normalize();
-            this.position.add(dir.multiplyScalar(dist - 1));
+            const targetDist = dist - 1;
+
+            // Check walkability along the charge path, stop at walls
+            let finalDist = targetDist;
+            for (let d = 1; d <= targetDist; d += 0.5) {
+                const testX = this.position.x + dir.x * d;
+                const testZ = this.position.z + dir.z * d;
+                if (!this.canMoveTo(testX, testZ)) {
+                    finalDist = Math.max(0, d - 1);
+                    break;
+                }
+            }
+
+            if (finalDist > 0) {
+                this.position.add(dir.multiplyScalar(finalDist));
+            }
             this.rotation = Math.atan2(dir.x, dir.z);
         }
 

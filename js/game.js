@@ -311,11 +311,11 @@ export class Game {
 
                 // Alternate between slimes and skeletons
                 if (i % 2 === 0) {
-                    const slime = new SlimeEnemy(this.scene, pos.x, pos.z);
+                    const slime = new SlimeEnemy(this.scene, pos.x, pos.z, this);
                     this.enemies.push(slime);
                 } else {
                     const skeletonType = skeletonTypes[i % skeletonTypes.length];
-                    const skeleton = new SkeletonEnemy(this.scene, pos.x, pos.z, skeletonType);
+                    const skeleton = new SkeletonEnemy(this.scene, pos.x, pos.z, skeletonType, this);
                     skeleton.name = `Skeleton ${skeletonType.charAt(0).toUpperCase() + skeletonType.slice(1)}`;
                     this.enemies.push(skeleton);
                 }
@@ -326,7 +326,7 @@ export class Game {
                 const lastRoom = this.dungeon.rooms[this.dungeon.rooms.length - 1];
                 const bossX = lastRoom.centerX * this.dungeon.tileSize;
                 const bossZ = lastRoom.centerY * this.dungeon.tileSize;
-                const boss = new GreaterSlimeEnemy(this.scene, bossX, bossZ);
+                const boss = new GreaterSlimeEnemy(this.scene, bossX, bossZ, this);
                 boss.name = 'Greater Slime';
                 this.enemies.push(boss);
             }
@@ -337,7 +337,7 @@ export class Game {
             ];
 
             for (const [x, z] of slimePositions) {
-                const slime = new SlimeEnemy(this.scene, x, z);
+                const slime = new SlimeEnemy(this.scene, x, z, this);
                 this.enemies.push(slime);
             }
         }

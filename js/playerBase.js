@@ -127,8 +127,24 @@ export class PlayerBase {
 
                 // Move toward target
                 const moveAmount = Math.min(this.moveSpeed * deltaTime, dist);
-                this.position.x += dirX * moveAmount;
-                this.position.z += dirZ * moveAmount;
+                const newX = this.position.x + dirX * moveAmount;
+                const newZ = this.position.z + dirZ * moveAmount;
+
+                // Check if new position is walkable
+                if (this.canMoveTo(newX, newZ)) {
+                    this.position.x = newX;
+                    this.position.z = newZ;
+                } else {
+                    // Try sliding along walls - check X and Z separately
+                    if (this.canMoveTo(newX, this.position.z)) {
+                        this.position.x = newX;
+                    } else if (this.canMoveTo(this.position.x, newZ)) {
+                        this.position.z = newZ;
+                    } else {
+                        // Can't move at all, clear target
+                        this.clearMoveTarget();
+                    }
+                }
 
                 // Face movement direction
                 this.rotation = Math.atan2(dirX, dirZ);
@@ -149,6 +165,16 @@ export class PlayerBase {
 
         this.isMoving = isMoving;
         return isMoving;
+    }
+
+    /**
+     * Check if the player can move to a world position
+     */
+    canMoveTo(worldX, worldZ) {
+        if (!this.game || !this.game.dungeon) {
+            return true; // No dungeon, allow movement
+        }
+        return this.game.dungeon.isWalkable(worldX, worldZ);
     }
 
     /**

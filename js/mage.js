@@ -525,7 +525,26 @@ export class Mage extends PlayerBase {
 
         const startPos = this.position.clone();
 
-        this.position.addScaledVector(backDir, ability.distance);
+        // Calculate target position
+        const targetX = this.position.x + backDir.x * ability.distance;
+        const targetZ = this.position.z + backDir.z * ability.distance;
+
+        // Check if target is walkable, if not try to find closest walkable spot
+        if (this.canMoveTo(targetX, targetZ)) {
+            this.position.x = targetX;
+            this.position.z = targetZ;
+        } else {
+            // Try stepping back in smaller increments to find walkable spot
+            for (let dist = ability.distance - 1; dist > 0; dist--) {
+                const testX = this.position.x + backDir.x * dist;
+                const testZ = this.position.z + backDir.z * dist;
+                if (this.canMoveTo(testX, testZ)) {
+                    this.position.x = testX;
+                    this.position.z = testZ;
+                    break;
+                }
+            }
+        }
 
         // Use dynamic bounds based on dungeon size
         let maxBound = 52;

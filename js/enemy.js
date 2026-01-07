@@ -2,8 +2,9 @@ import * as THREE from 'three';
 import { EnemyModelController } from './enemyModel.js';
 
 export class Enemy {
-    constructor(scene, x, z) {
+    constructor(scene, x, z, game = null) {
         this.scene = scene;
+        this.game = game;
         this.position = new THREE.Vector3(x, 0, z);
 
         this.maxHealth = 100;
@@ -23,6 +24,14 @@ export class Enemy {
 
         this.createMesh();
         this.createHealthBar();
+    }
+
+    // Check if enemy can move to a world position
+    canMoveTo(worldX, worldZ) {
+        if (!this.game || !this.game.dungeon) {
+            return true; // No dungeon, allow movement
+        }
+        return this.game.dungeon.isWalkable(worldX, worldZ);
     }
 
     createMesh() {
@@ -116,7 +125,23 @@ export class Enemy {
                 .normalize();
             dir.y = 0;
 
-            this.position.add(dir.multiplyScalar(this.moveSpeed * deltaTime));
+            // Calculate new position
+            const moveAmount = this.moveSpeed * deltaTime;
+            const newX = this.position.x + dir.x * moveAmount;
+            const newZ = this.position.z + dir.z * moveAmount;
+
+            // Check if new position is walkable
+            if (this.canMoveTo(newX, newZ)) {
+                this.position.x = newX;
+                this.position.z = newZ;
+            } else {
+                // Try sliding along walls - check X and Z separately
+                if (this.canMoveTo(newX, this.position.z)) {
+                    this.position.x = newX;
+                } else if (this.canMoveTo(this.position.x, newZ)) {
+                    this.position.z = newZ;
+                }
+            }
 
             // Face player
             if (this.mesh) {
@@ -226,8 +251,8 @@ export class Enemy {
 }
 
 export class SlimeEnemy extends Enemy {
-    constructor(scene, x, z) {
-        super(scene, x, z);
+    constructor(scene, x, z, game = null) {
+        super(scene, x, z, game);
 
         this.name = 'Slime';
         this.maxHealth = 200;
@@ -304,8 +329,8 @@ export class SlimeEnemy extends Enemy {
 }
 
 export class GreaterSlimeEnemy extends Enemy {
-    constructor(scene, x, z) {
-        super(scene, x, z);
+    constructor(scene, x, z, game = null) {
+        super(scene, x, z, game);
 
         this.maxHealth = 350;
         this.health = this.maxHealth;
@@ -381,8 +406,8 @@ export class GreaterSlimeEnemy extends Enemy {
 }
 
 export class SkeletonEnemy extends Enemy {
-    constructor(scene, x, z, skeletonType = 'warrior') {
-        super(scene, x, z);
+    constructor(scene, x, z, skeletonType = 'warrior', game = null) {
+        super(scene, x, z, game);
 
         this.name = 'Skeleton';
         this.skeletonType = skeletonType;
@@ -644,8 +669,7 @@ const AttackType = {
 
 export class SlimeBoss extends Enemy {
     constructor(scene, game, x, z) {
-        super(scene, x, z);
-        this.game = game;
+        super(scene, x, z, game);
 
         this.name = 'Slime Boss';
         this.maxHealth = 1600;
