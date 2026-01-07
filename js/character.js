@@ -65,10 +65,16 @@ export class CharacterController {
             this.scene.add(this.model);
             this.isLoaded = true;
 
-            // Start with idle animation
-            this.playAnimation('idle', true);
+            // Log what animations were loaded
+            console.log('Character loaded:', this.characterClass, 'Animations:', Object.keys(this.animations));
 
-            console.log('Character loaded successfully:', this.characterClass);
+            // Start with idle animation
+            if (this.animations.idle) {
+                this.playAnimation('idle', true);
+            } else {
+                console.warn('No idle animation found! Available:', Object.keys(this.animations));
+            }
+
             return true;
         } catch (error) {
             console.error('Failed to load character:', error);
@@ -156,7 +162,7 @@ export class CharacterController {
                 const gltf = await this.loadGLTF(loader, animFile);
 
                 if (gltf.animations && gltf.animations.length > 0) {
-                    console.log(`Loaded ${gltf.animations.length} animations from ${animFile}`);
+                    console.log(`Loaded ${gltf.animations.length} animations from ${animFile}:`, gltf.animations.map(a => a.name));
 
                     for (const clip of gltf.animations) {
                         // Try to map the animation name
