@@ -148,8 +148,8 @@ export class Game {
         } else {
             document.querySelector('#ability-q .name').textContent = 'Cleave';
             document.querySelector('#ability-w .name').textContent = 'Bladestorm';
-            document.querySelector('#ability-e .name').textContent = 'Parry';
-            document.querySelector('#ability-r .name').textContent = 'Charge';
+            document.querySelector('#ability-e .name').textContent = 'Leap';
+            document.querySelector('#ability-r .name').textContent = 'Shockwave';
         }
     }
 
@@ -660,8 +660,8 @@ export class Game {
         } else {
             this.updateAbilityCooldown('q', this.player.abilities.cleave);
             this.updateAbilityCooldown('w', this.player.abilities.bladestorm);
-            this.updateAbilityCooldown('e', this.player.abilities.parry);
-            this.updateAbilityCooldown('r', this.player.abilities.charge);
+            this.updateAbilityCooldown('e', this.player.abilities.leap);
+            this.updateAbilityCooldown('r', this.player.abilities.shockwave);
             this.updateAbilityCooldown('1', this.player.abilities.potion);
         }
     }

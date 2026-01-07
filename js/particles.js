@@ -1075,4 +1075,194 @@ export class ParticleSystem {
             texture: 'spark'
         });
     }
+
+    // === Warrior Movement Ability Effects ===
+
+    leapTrail(startPos, endPos) {
+        const dir = new THREE.Vector3().subVectors(endPos, startPos);
+        const dist = dir.length();
+        dir.normalize();
+
+        // Arc trail with blue/gold color
+        const steps = Math.floor(dist * 2.5);
+        for (let i = 0; i < steps; i++) {
+            const t = i / steps;
+            const pos = new THREE.Vector3().lerpVectors(startPos, endPos, t);
+            // Add arc height
+            pos.y = 0.5 + Math.sin(t * Math.PI) * 3;
+            setTimeout(() => {
+                this.spawn(pos, {
+                    count: 4,
+                    spread: 0.15,
+                    speed: 2,
+                    life: 0.5,
+                    size: 0.35,
+                    endSize: 0.05,
+                    gravity: -3,
+                    upwardBias: 0,
+                    color: 0x66aaff,
+                    endColor: 0x4488ff,
+                    texture: 'soft'
+                });
+                // Sparks
+                this.spawn(pos, {
+                    count: 2,
+                    spread: 0.1,
+                    speed: 3,
+                    life: 0.3,
+                    size: 0.15,
+                    gravity: -5,
+                    upwardBias: 0,
+                    color: 0xffdd66,
+                    texture: 'spark'
+                });
+            }, i * 8);
+        }
+    }
+
+    groundSlam(position, radius = 4) {
+        // Central impact burst
+        this.spawn(position, {
+            count: 25,
+            spread: 0.5,
+            speed: 10,
+            life: 0.6,
+            size: 0.5,
+            endSize: 0.1,
+            gravity: -8,
+            upwardBias: 4,
+            color: 0xffaa44,
+            endColor: 0xff6600,
+            texture: 'soft'
+        });
+
+        // Dust ring expanding outward
+        for (let i = 0; i < 24; i++) {
+            const angle = (i / 24) * Math.PI * 2;
+            const offset = {
+                x: position.x + Math.cos(angle) * 0.5,
+                y: position.y + 0.2,
+                z: position.z + Math.sin(angle) * 0.5
+            };
+            this.spawn(offset, {
+                count: 2,
+                spread: 0.2,
+                speed: 8 + radius,
+                life: 0.5,
+                size: 0.4,
+                endSize: 0.1,
+                gravity: -2,
+                upwardBias: 0,
+                drag: 0.92,
+                color: 0xddaa77,
+                endColor: 0x886644,
+                texture: 'smoke',
+                blendMode: 'normal'
+            });
+        }
+
+        // Ground crack particles
+        for (let r = 1; r < radius; r += 0.8) {
+            for (let i = 0; i < 8; i++) {
+                const angle = (i / 8) * Math.PI * 2 + Math.random() * 0.3;
+                const pos = {
+                    x: position.x + Math.cos(angle) * r,
+                    y: position.y + 0.1,
+                    z: position.z + Math.sin(angle) * r
+                };
+                setTimeout(() => {
+                    this.spawn(pos, {
+                        count: 2,
+                        spread: 0.2,
+                        speed: 4,
+                        life: 0.4,
+                        size: 0.3,
+                        gravity: -10,
+                        upwardBias: 3,
+                        color: 0xffcc88,
+                        texture: 'spark'
+                    });
+                }, r * 30);
+            }
+        }
+
+        // White flash at center
+        this.spawn(position, {
+            count: 8,
+            spread: 0.2,
+            speed: 1,
+            life: 0.2,
+            size: 0.8,
+            gravity: 0,
+            upwardBias: 0,
+            color: 0xffffff,
+            texture: 'soft'
+        });
+    }
+
+    directionalShockwave(position, direction, range = 10) {
+        const dir = new THREE.Vector3(direction.x, 0, direction.z).normalize();
+
+        // Wave traveling forward
+        for (let d = 1; d < range; d += 0.6) {
+            const pos = position.clone().addScaledVector(dir, d);
+            pos.y = 0.3;
+            setTimeout(() => {
+                // Main wave particles
+                this.spawn(pos, {
+                    count: 8,
+                    spread: 1.5,
+                    speed: 5,
+                    life: 0.5,
+                    size: 0.5,
+                    endSize: 0.1,
+                    gravity: -3,
+                    upwardBias: 4,
+                    color: 0x88aaff,
+                    endColor: 0x4466ff,
+                    texture: 'soft'
+                });
+                // Ground dust
+                this.spawn(pos, {
+                    count: 4,
+                    spread: 1.2,
+                    speed: 3,
+                    life: 0.6,
+                    size: 0.4,
+                    gravity: -2,
+                    upwardBias: 1,
+                    drag: 0.95,
+                    color: 0xaa9977,
+                    endColor: 0x665544,
+                    texture: 'smoke',
+                    blendMode: 'normal'
+                });
+                // Energy sparks
+                this.spawn(pos, {
+                    count: 3,
+                    spread: 0.8,
+                    speed: 8,
+                    life: 0.3,
+                    size: 0.2,
+                    gravity: -5,
+                    upwardBias: 3,
+                    color: 0xaaddff,
+                    texture: 'spark'
+                });
+            }, d * 25);
+        }
+
+        // Initial burst at player
+        this.spawn(position, {
+            count: 12,
+            spread: 0.4,
+            speed: 6,
+            life: 0.3,
+            size: 0.4,
+            gravity: 0,
+            upwardBias: 2,
+            color: 0xccddff,
+            texture: 'soft'
+        });
+    }
 }

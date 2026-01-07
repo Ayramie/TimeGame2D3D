@@ -76,13 +76,18 @@ export class InputManager {
                 break;
 
             case 'e':
-                // E ability - Parry
-                this.game.player.useParry();
+                // E ability - Leap to mouse position
+                if (this.game.player.useLeap) {
+                    this.game.player.useLeap(this.mouseWorldPos.x, this.mouseWorldPos.z);
+                }
                 break;
 
             case 'r':
-                // R ability - Charge
-                this.game.player.useCharge();
+                // R ability - Shockwave toward mouse
+                if (this.game.player.useShockwave) {
+                    const dir = this.getAimDirection(this.game.player.position);
+                    this.game.player.useShockwave(dir);
+                }
                 break;
 
             case '1':

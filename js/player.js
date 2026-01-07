@@ -34,20 +34,20 @@ export class Player extends PlayerBase {
                 isActive: false,
                 activeTime: 0
             },
-            parry: {
-                cooldown: 5,
+            leap: {
+                cooldown: 6,
                 cooldownRemaining: 0,
-                duration: 0.4,
-                perfectWindow: 0.15,
-                riposteDamage: 50,
-                perfectDamage: 100,
-                isActive: false,
-                activeTime: 0
+                damage: 45,
+                radius: 4,
+                maxRange: 12,
+                isActive: false
             },
-            charge: {
+            shockwave: {
                 cooldown: 8,
                 cooldownRemaining: 0,
-                stunDuration: 1,
+                damage: 35,
+                range: 10,
+                width: 3,
                 isActive: false
             },
             potion: {
@@ -320,15 +320,6 @@ export class Player extends PlayerBase {
         // Update cooldowns (from base class pattern)
         this.updateAbilityCooldowns(deltaTime);
 
-        // Parry duration
-        if (this.abilities.parry.isActive) {
-            this.abilities.parry.activeTime += deltaTime;
-            if (this.abilities.parry.activeTime >= this.abilities.parry.duration) {
-                this.abilities.parry.isActive = false;
-                this.abilities.parry.activeTime = 0;
-            }
-        }
-
         // Bladestorm duration
         if (this.abilities.bladestorm.isActive) {
             this.abilities.bladestorm.activeTime += deltaTime;
@@ -338,14 +329,7 @@ export class Player extends PlayerBase {
         }
     }
 
-    // Override takeDamage to add parry check
     takeDamage(amount) {
-        // Check parry
-        if (this.abilities.parry.isActive) {
-            // Parry is handled by tryParry, called by attacker
-            return;
-        }
-
         // Call parent takeDamage
         super.takeDamage(amount);
     }
@@ -627,97 +611,134 @@ export class Player extends PlayerBase {
         }
     }
 
-    useParry() {
-        const ability = this.abilities.parry;
+    // Leap to target location, deal AOE damage on landing
+    useLeap(targetX, targetZ) {
+        const ability = this.abilities.leap;
         if (ability.cooldownRemaining > 0) return false;
-        if (ability.isActive) return false;
 
-        ability.isActive = true;
-        ability.activeTime = 0;
-        ability.cooldownRemaining = ability.cooldown;
+        // Calculate distance and clamp to max range
+        const dx = targetX - this.position.x;
+        const dz = targetZ - this.position.z;
+        let dist = Math.sqrt(dx * dx + dz * dz);
 
-        if (this.useAnimatedCharacter) {
-            this.character.playBlock();
+        if (dist > ability.maxRange) {
+            const scale = ability.maxRange / dist;
+            targetX = this.position.x + dx * scale;
+            targetZ = this.position.z + dz * scale;
+            dist = ability.maxRange;
         }
 
-        if (this.game && this.game.effects) {
-            this.game.effects.createParryEffect(this.position);
+        // Check if target is walkable
+        if (!this.canMoveTo(targetX, targetZ)) {
+            return false;
         }
-
-        return true;
-    }
-
-    tryParry(attacker) {
-        const ability = this.abilities.parry;
-        if (!ability.isActive) return false;
-
-        const isPerfect = ability.activeTime <= ability.perfectWindow;
-        const damage = isPerfect ? ability.perfectDamage : ability.riposteDamage;
-
-        if (this.game && this.game.effects && attacker) {
-            this.game.effects.createRiposteEffect(this.position, attacker.position);
-            this.game.effects.createDamageNumber(attacker.position, damage, false, isPerfect);
-        }
-
-        if (attacker && attacker.takeDamage) {
-            attacker.takeDamage(damage, this);
-            attacker.stun(isPerfect ? 1.0 : 0.5);
-        }
-
-        ability.isActive = false;
-        return true;
-    }
-
-    useCharge() {
-        const ability = this.abilities.charge;
-        if (ability.cooldownRemaining > 0) return false;
-        if (!this.targetEnemy || !this.targetEnemy.isAlive) return false;
 
         ability.cooldownRemaining = ability.cooldown;
 
         const startPos = this.position.clone();
 
-        const dir = new THREE.Vector3().subVectors(this.targetEnemy.position, this.position);
-        dir.y = 0;
-        const dist = dir.length();
+        // Move to target
+        this.position.x = targetX;
+        this.position.z = targetZ;
 
-        if (dist > 1.5) {
-            dir.normalize();
-            const targetDist = dist - 1;
+        // Face leap direction
+        this.rotation = Math.atan2(dx, dz);
 
-            // Check walkability along the charge path, stop at walls
-            let finalDist = targetDist;
-            for (let d = 1; d <= targetDist; d += 0.5) {
-                const testX = this.position.x + dir.x * d;
-                const testZ = this.position.z + dir.z * d;
-                if (!this.canMoveTo(testX, testZ)) {
-                    finalDist = Math.max(0, d - 1);
-                    break;
+        // Play jump animation
+        if (this.useAnimatedCharacter) {
+            this.character.playJump();
+        }
+
+        // Visual effects
+        if (this.game && this.game.particles) {
+            this.game.particles.leapTrail(startPos, this.position);
+            this.game.particles.groundSlam(this.position, ability.radius);
+        }
+
+        if (this.game) {
+            this.game.addScreenShake(0.5);
+        }
+
+        // Deal AOE damage on landing
+        if (this.game && this.game.enemies) {
+            for (const enemy of this.game.enemies) {
+                if (!enemy.isAlive) continue;
+
+                const enemyDist = this.position.distanceTo(enemy.position);
+                if (enemyDist <= ability.radius) {
+                    enemy.takeDamage(ability.damage, this);
+
+                    if (this.game.effects) {
+                        this.game.effects.createDamageNumber(enemy.position, ability.damage);
+                    }
                 }
             }
-
-            if (finalDist > 0) {
-                this.position.add(dir.multiplyScalar(finalDist));
-            }
-            this.rotation = Math.atan2(dir.x, dir.z);
         }
 
-        if (this.game && this.game.effects) {
-            this.game.effects.createChargeEffect(startPos, this.position);
+        return true;
+    }
+
+    // Send a shockwave in the aimed direction
+    useShockwave(direction) {
+        const ability = this.abilities.shockwave;
+        if (ability.cooldownRemaining > 0) return false;
+
+        ability.cooldownRemaining = ability.cooldown;
+
+        // Face the direction
+        this.rotation = Math.atan2(direction.x, direction.z);
+
+        // Play attack animation
+        if (this.useAnimatedCharacter) {
+            this.character.playAttack(2);
         }
 
+        // Create shockwave visual
         if (this.game && this.game.particles) {
-            const trailDir = new THREE.Vector3().subVectors(this.position, startPos).normalize();
-            const steps = Math.ceil(dist / 1.5);
-            for (let i = 0; i < steps; i++) {
-                const pos = startPos.clone().addScaledVector(trailDir, i * 1.5);
-                this.game.particles.chargeTrail(pos, trailDir);
-            }
-            this.game.particles.bounceImpact(this.position);
-            this.game.addScreenShake(0.6);
+            this.game.particles.directionalShockwave(this.position, direction, ability.range);
         }
 
-        this.targetEnemy.stun(ability.stunDuration);
+        if (this.game) {
+            this.game.addScreenShake(0.4);
+        }
+
+        // Deal damage to enemies in the shockwave path
+        if (this.game && this.game.enemies) {
+            const forward = new THREE.Vector3(direction.x, 0, direction.z).normalize();
+
+            for (const enemy of this.game.enemies) {
+                if (!enemy.isAlive) continue;
+
+                const toEnemy = new THREE.Vector3(
+                    enemy.position.x - this.position.x,
+                    0,
+                    enemy.position.z - this.position.z
+                );
+                const dist = toEnemy.length();
+
+                if (dist > ability.range) continue;
+
+                // Check if enemy is within the width of the shockwave
+                toEnemy.normalize();
+                const dot = forward.dot(toEnemy);
+
+                if (dot > 0.5) { // In front of player
+                    // Calculate perpendicular distance from shockwave center line
+                    const cross = Math.abs(forward.x * toEnemy.z - forward.z * toEnemy.x);
+                    const perpDist = cross * dist;
+
+                    if (perpDist <= ability.width / 2) {
+                        enemy.takeDamage(ability.damage, this);
+                        enemy.stun(0.3);
+
+                        if (this.game.effects) {
+                            this.game.effects.createDamageNumber(enemy.position, ability.damage);
+                        }
+                    }
+                }
+            }
+        }
+
         return true;
     }
 }
