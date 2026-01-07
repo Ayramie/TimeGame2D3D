@@ -302,8 +302,8 @@ export class Game {
             boss.name = 'Slime Boss';
             this.enemies.push(boss);
         } else if (this.gameMode === 'mobbing' && this.dungeon) {
-            // Mobbing mode - spawn fewer enemies for performance
-            const spawnPositions = this.dungeon.getEnemySpawnPositions(4);
+            // Mobbing mode - spawn enemies in each room
+            const spawnPositions = this.dungeon.getEnemySpawnPositions(6);
             const skeletonTypes = ['warrior', 'mage'];
 
             for (let i = 0; i < spawnPositions.length; i++) {

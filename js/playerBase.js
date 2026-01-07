@@ -138,10 +138,14 @@ export class PlayerBase {
             }
         }
 
-        // Keep in bounds (dungeon is ~40x40 world units for 20x20 tiles with tileSize=2)
-        const bounds = 38;
-        this.position.x = Math.max(1, Math.min(bounds, this.position.x));
-        this.position.z = Math.max(1, Math.min(bounds, this.position.z));
+        // Keep in bounds - use dungeon size if available, otherwise default
+        let maxBound = 52; // Default for 28x28 dungeon with tileSize=2
+        if (this.game && this.game.dungeon) {
+            maxBound = (this.game.dungeon.width - 2) * this.game.dungeon.tileSize;
+        }
+        const minBound = 2; // Stay away from border walls
+        this.position.x = Math.max(minBound, Math.min(maxBound, this.position.x));
+        this.position.z = Math.max(minBound, Math.min(maxBound, this.position.z));
 
         this.isMoving = isMoving;
         return isMoving;

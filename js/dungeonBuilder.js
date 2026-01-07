@@ -19,16 +19,16 @@ export class DungeonBuilder {
         this.instances = [];
         this.lights = [];
 
-        // Dungeon settings - SMALLER FOR PERFORMANCE
+        // Dungeon settings
         this.tileSize = 2; // Each tile is 2x2 units
-        this.width = 20;
-        this.height = 20;
+        this.width = 28;
+        this.height = 28;
         this.tiles = [];
 
-        // Room settings
-        this.minRoomSize = 4;
-        this.maxRoomSize = 6;
-        this.numRooms = 4;
+        // Room settings - larger rooms for more open space
+        this.minRoomSize = 5;
+        this.maxRoomSize = 8;
+        this.numRooms = 5;
         this.rooms = [];
     }
 
@@ -74,13 +74,16 @@ export class DungeonBuilder {
             }
         }
 
+        // Add border walls around the entire map
+        this.generateBorderWalls();
+
         // Generate rooms
         this.rooms = [];
         for (let i = 0; i < this.numRooms; i++) {
             this.tryPlaceRoom();
         }
 
-        // Connect rooms with corridors
+        // Connect rooms with wide corridors
         for (let i = 1; i < this.rooms.length; i++) {
             this.connectRooms(this.rooms[i - 1], this.rooms[i]);
         }
@@ -94,10 +97,23 @@ export class DungeonBuilder {
         return this.tiles;
     }
 
+    generateBorderWalls() {
+        // Create walls around the entire map edge
+        for (let x = 0; x < this.width; x++) {
+            this.tiles[0][x] = DungeonTile.WALL;
+            this.tiles[this.height - 1][x] = DungeonTile.WALL;
+        }
+        for (let y = 0; y < this.height; y++) {
+            this.tiles[y][0] = DungeonTile.WALL;
+            this.tiles[y][this.width - 1] = DungeonTile.WALL;
+        }
+    }
+
     tryPlaceRoom() {
         for (let attempt = 0; attempt < 50; attempt++) {
             const width = this.minRoomSize + Math.floor(Math.random() * (this.maxRoomSize - this.minRoomSize));
             const height = this.minRoomSize + Math.floor(Math.random() * (this.maxRoomSize - this.minRoomSize));
+            // Keep rooms away from border (at least 2 tiles from edge)
             const x = 2 + Math.floor(Math.random() * (this.width - width - 4));
             const y = 2 + Math.floor(Math.random() * (this.height - height - 4));
 
@@ -139,18 +155,25 @@ export class DungeonBuilder {
         const targetX = Math.floor(roomB.centerX);
         const targetY = Math.floor(roomB.centerY);
 
-        // L-shaped corridor
+        // L-shaped corridor - 2 tiles wide for more open feel
         while (x !== targetX) {
-            if (this.tiles[y][x] === DungeonTile.EMPTY) {
-                this.tiles[y][x] = DungeonTile.FLOOR;
-            }
+            this.placeCorridorTile(x, y);
+            this.placeCorridorTile(x, y + 1); // Make it 2 tiles wide
             x += x < targetX ? 1 : -1;
         }
         while (y !== targetY) {
+            this.placeCorridorTile(x, y);
+            this.placeCorridorTile(x + 1, y); // Make it 2 tiles wide
+            y += y < targetY ? 1 : -1;
+        }
+    }
+
+    placeCorridorTile(x, y) {
+        // Only place floor if within bounds and not on border
+        if (x > 0 && x < this.width - 1 && y > 0 && y < this.height - 1) {
             if (this.tiles[y][x] === DungeonTile.EMPTY) {
                 this.tiles[y][x] = DungeonTile.FLOOR;
             }
-            y += y < targetY ? 1 : -1;
         }
     }
 
