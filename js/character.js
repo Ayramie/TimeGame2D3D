@@ -130,30 +130,33 @@ export class CharacterController {
             'assets/models/Rig_Medium_MovementBasic.glb'
         ];
 
-        // Animation name mappings (KayKit animation names to our names)
+        // Animation name mappings (actual animation names to our names)
         const animationMappings = {
             // Movement animations
-            'Idle': 'idle',
-            'Walk': 'walk',
-            'Run': 'run',
-            'Run_Strafe_Left': 'strafeLeft',
-            'Run_Strafe_Right': 'strafeRight',
-            'Jump': 'jump',
-            'Fall': 'fall',
-            'Land': 'land',
+            'idle_a': 'idle',
+            'idle_b': 'idle2',
+            'walking_a': 'walk',
+            'walking_b': 'walk2',
+            'walking_c': 'walk3',
+            'running_a': 'run',
+            'running_b': 'run2',
+            'jump_start': 'jump',
+            'jump_idle': 'jumpIdle',
+            'jump_land': 'land',
+            'jump_full_short': 'jumpShort',
+            'jump_full_long': 'jumpLong',
             // Combat animations
-            'Attack_1H': 'attack1',
-            'Attack_2H': 'attack2',
-            'Attack_Stab': 'attack3',
-            'Attack_Kick': 'attack4',
-            'Block': 'block',
-            'Block_Idle': 'blockIdle',
-            'Hit': 'impact',
-            'Death': 'death',
+            'hit_a': 'impact',
+            'hit_b': 'impact2',
+            'death_a': 'death',
+            'death_b': 'death2',
             // Additional
-            'Interact': 'interact',
-            'Roll': 'roll',
-            'Cheer': 'powerUp'
+            'interact': 'interact',
+            'pickup': 'pickup',
+            'throw': 'throw',
+            'use_item': 'useItem',
+            'spawn_air': 'spawnAir',
+            'spawn_ground': 'spawnGround'
         };
 
         // Load all animation files
@@ -178,15 +181,15 @@ export class CharacterController {
                         const action = this.mixer.clipAction(cleanClip);
 
                         // Configure animation properties
-                        if (['idle', 'walk', 'run', 'blockIdle', 'strafeLeft', 'strafeRight'].includes(animName)) {
+                        if (['idle', 'idle2', 'walk', 'walk2', 'walk3', 'run', 'run2', 'jumpIdle'].includes(animName)) {
                             action.setLoop(THREE.LoopRepeat);
-                        } else if (animName.startsWith('attack') || animName === 'impact') {
+                        } else if (animName.startsWith('attack') || animName.startsWith('impact')) {
                             action.setLoop(THREE.LoopOnce);
                             action.clampWhenFinished = true;
-                        } else if (animName === 'death') {
+                        } else if (animName.startsWith('death')) {
                             action.setLoop(THREE.LoopOnce);
                             action.clampWhenFinished = true;
-                        } else if (['jump', 'block', 'roll', 'land'].includes(animName)) {
+                        } else if (['jump', 'jumpShort', 'jumpLong', 'land'].includes(animName)) {
                             action.setLoop(THREE.LoopOnce);
                             action.clampWhenFinished = false;
                         } else {
@@ -224,7 +227,7 @@ export class CharacterController {
     onAnimationFinished(action) {
         const animName = action.getClip().name;
 
-        if (animName.startsWith('attack') || animName === 'impact') {
+        if (animName.startsWith('attack') || animName.startsWith('impact') || animName === 'throw') {
             this.isAttacking = false;
             this.attackStartTime = null;
 
@@ -235,7 +238,7 @@ export class CharacterController {
             } else {
                 this.returnToDefaultAnimation();
             }
-        } else if (['jump', 'block', 'powerUp', 'roll', 'land'].includes(animName)) {
+        } else if (['jump', 'jumpShort', 'jumpLong', 'land', 'pickup', 'useItem'].includes(animName)) {
             this.returnToDefaultAnimation();
         }
     }
@@ -305,11 +308,14 @@ export class CharacterController {
         this.isAttacking = true;
         this.attackStartTime = Date.now();
 
+        // Try attack animations, fall back to throw or impact
         const attackName = `attack${attackNum}`;
         if (this.animations[attackName]) {
             this.playAnimation(attackName, false, 0.1);
-        } else if (this.animations.attack1) {
-            this.playAnimation('attack1', false, 0.1);
+        } else if (this.animations.throw) {
+            this.playAnimation('throw', false, 0.1);
+        } else if (this.animations.impact) {
+            this.playAnimation('impact', false, 0.1);
         }
     }
 
