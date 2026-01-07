@@ -59,7 +59,17 @@ export class CharacterController {
             // Create animation mixer
             this.mixer = new THREE.AnimationMixer(this.model);
 
-            // Load animations from animation GLB files
+            // First check if character model has embedded animations
+            if (gltf.animations && gltf.animations.length > 0) {
+                console.log(`Character ${this.characterClass} has ${gltf.animations.length} embedded animations:`, gltf.animations.map(a => a.name));
+                for (const clip of gltf.animations) {
+                    const action = this.mixer.clipAction(clip);
+                    action.setLoop(THREE.LoopRepeat);
+                    this.animations[clip.name.toLowerCase()] = action;
+                }
+            }
+
+            // Load additional animations from animation GLB files
             await this.loadAnimations(loader);
 
             this.scene.add(this.model);
@@ -202,17 +212,6 @@ export class CharacterController {
                 }
             } catch (error) {
                 console.warn(`Could not load animation file ${animFile}:`, error.message);
-            }
-        }
-
-        // Also check if the character model itself has embedded animations
-        if (this.model && this.model.animations) {
-            for (const clip of this.model.animations) {
-                const animName = clip.name.toLowerCase();
-                if (!this.animations[animName]) {
-                    const cleanClip = this.removeRootMotion(clip);
-                    this.animations[animName] = this.mixer.clipAction(cleanClip);
-                }
             }
         }
 
