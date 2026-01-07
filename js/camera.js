@@ -8,7 +8,7 @@ export class IsometricCamera {
         // Camera settings for isometric view
         this.height = 20;
         this.distance = 15;
-        this.angle = Math.PI / 4; // 45 degree angle for isometric
+        this.angle = Math.PI / 4; // 45 degree angle for isometric (yaw rotation)
 
         // Target position (follows player smoothly)
         this.targetPosition = new THREE.Vector3(0, 0, 0);
@@ -22,8 +22,35 @@ export class IsometricCamera {
         this.minZoom = 0.5;
         this.maxZoom = 2;
 
+        // Camera rotation (controlled by right-click drag)
+        this.rotationSpeed = 0.005;
+
         // Initialize camera position
         this.updateCameraPosition();
+    }
+
+    // Rotate camera around player (yaw only)
+    rotate(deltaX) {
+        this.angle -= deltaX * this.rotationSpeed;
+        // Keep angle in 0 to 2PI range
+        while (this.angle < 0) this.angle += Math.PI * 2;
+        while (this.angle >= Math.PI * 2) this.angle -= Math.PI * 2;
+    }
+
+    // Get the forward direction based on camera angle (for WASD movement)
+    getForwardDirection() {
+        return {
+            x: -Math.sin(this.angle),
+            z: -Math.cos(this.angle)
+        };
+    }
+
+    // Get the right direction based on camera angle (for WASD movement)
+    getRightDirection() {
+        return {
+            x: -Math.cos(this.angle),
+            z: Math.sin(this.angle)
+        };
     }
 
     setTarget(position, immediate = false) {

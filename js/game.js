@@ -142,12 +142,12 @@ export class Game {
     updateAbilityLabels() {
         if (this.selectedClass === 'mage') {
             document.querySelector('#ability-q .name').textContent = 'Blizzard';
-            document.querySelector('#ability-w .name').textContent = 'Flame Wave';
+            document.querySelector('#ability-2 .name').textContent = 'Flame Wave';
             document.querySelector('#ability-e .name').textContent = 'Burn Aura';
             document.querySelector('#ability-r .name').textContent = 'Backstep';
         } else {
             document.querySelector('#ability-q .name').textContent = 'Cleave';
-            document.querySelector('#ability-w .name').textContent = 'Bladestorm';
+            document.querySelector('#ability-2 .name').textContent = 'Bladestorm';
             document.querySelector('#ability-e .name').textContent = 'Leap';
             document.querySelector('#ability-r .name').textContent = 'Shockwave';
         }
@@ -454,6 +454,11 @@ export class Game {
         // Skip updates if not playing
         if (this.gameState !== 'playing') return;
 
+        // Update input (WASD movement)
+        if (this.input) {
+            this.input.update(deltaTime);
+        }
+
         // Update player (click-to-move)
         this.player.update(deltaTime);
 
@@ -653,13 +658,13 @@ export class Game {
         // Ability cooldowns - different for each class
         if (this.selectedClass === 'mage') {
             this.updateAbilityCooldown('q', this.player.abilities.blizzard);
-            this.updateAbilityCooldown('w', this.player.abilities.flameWave);
+            this.updateAbilityCooldown('2', this.player.abilities.flameWave);
             this.updateAbilityCooldown('e', this.player.abilities.burnAura);
             this.updateAbilityCooldown('r', this.player.abilities.backstep);
             this.updateAbilityCooldown('1', this.player.abilities.potion);
         } else {
             this.updateAbilityCooldown('q', this.player.abilities.cleave);
-            this.updateAbilityCooldown('w', this.player.abilities.bladestorm);
+            this.updateAbilityCooldown('2', this.player.abilities.bladestorm);
             this.updateAbilityCooldown('e', this.player.abilities.leap);
             this.updateAbilityCooldown('r', this.player.abilities.shockwave);
             this.updateAbilityCooldown('1', this.player.abilities.potion);
