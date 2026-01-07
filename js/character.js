@@ -26,11 +26,11 @@ export class CharacterController {
 
         // Select character model based on class
         const characterModels = {
-            warrior: './assets/models/Knight.glb',
-            mage: './assets/models/Mage.glb',
-            barbarian: './assets/models/Barbarian.glb',
-            ranger: './assets/models/Ranger.glb',
-            rogue: './assets/models/Rogue.glb'
+            warrior: 'assets/models/Knight.glb',
+            mage: 'assets/models/Mage.glb',
+            barbarian: 'assets/models/Barbarian.glb',
+            ranger: 'assets/models/Ranger.glb',
+            rogue: 'assets/models/Rogue.glb'
         };
 
         const modelPath = characterModels[this.characterClass] || characterModels.warrior;
@@ -120,8 +120,8 @@ export class CharacterController {
     async loadAnimations(loader) {
         // KayKit animation files
         const animationFiles = [
-            './assets/models/Rig_Medium_General.glb',
-            './assets/models/Rig_Medium_MovementBasic.glb'
+            'assets/models/Rig_Medium_General.glb',
+            'assets/models/Rig_Medium_MovementBasic.glb'
         ];
 
         // Animation name mappings (KayKit animation names to our names)

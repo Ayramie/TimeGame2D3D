@@ -19,30 +19,27 @@ export class DungeonBuilder {
         this.instances = [];
         this.lights = [];
 
-        // Dungeon settings
+        // Dungeon settings - SMALLER FOR PERFORMANCE
         this.tileSize = 2; // Each tile is 2x2 units
-        this.width = 30;
-        this.height = 30;
+        this.width = 20;
+        this.height = 20;
         this.tiles = [];
 
         // Room settings
         this.minRoomSize = 4;
-        this.maxRoomSize = 8;
-        this.numRooms = 6;
+        this.maxRoomSize = 6;
+        this.numRooms = 4;
         this.rooms = [];
     }
 
     async loadModels() {
         const modelList = [
             { name: 'wall', path: 'assets/dungeon/wall.gltf' },
-            { name: 'wallCorner', path: 'assets/dungeon/wall_corner.gltf' },
-            { name: 'wallDoorway', path: 'assets/dungeon/wall_doorway.gltf' },
             { name: 'floorTile', path: 'assets/dungeon/floor_tile_large.gltf' },
             { name: 'floorDirt', path: 'assets/dungeon/floor_dirt_large.gltf' },
             { name: 'torch', path: 'assets/dungeon/torch_lit.gltf' },
             { name: 'pillar', path: 'assets/dungeon/pillar.gltf' },
             { name: 'chest', path: 'assets/dungeon/chest.gltf' },
-            { name: 'barrel', path: 'assets/dungeon/barrel_large.gltf' },
         ];
 
         const promises = modelList.map(m => this.loadModel(m.name, m.path));
@@ -361,44 +358,12 @@ export class DungeonBuilder {
     }
 
     addRoomDecoration(room) {
-        // Add torches at corners
-        const torchPositions = [
-            { x: room.x + 1, y: room.y + 1 },
-            { x: room.x + room.width - 2, y: room.y + 1 },
-            { x: room.x + 1, y: room.y + room.height - 2 },
-            { x: room.x + room.width - 2, y: room.y + room.height - 2 },
-        ];
-
-        for (const pos of torchPositions) {
-            if (Math.random() < 0.6) {
-                const worldX = pos.x * this.tileSize;
-                const worldZ = pos.y * this.tileSize;
-                this.placeModel('torch', worldX, 0, worldZ, Math.random() * Math.PI * 2, 1.5);
-
-                // Add point light
-                const light = new THREE.PointLight(0xff6622, 1.5, 8);
-                light.position.set(worldX, 2, worldZ);
-                light.castShadow = false; // Performance
-                this.scene.add(light);
-                this.lights.push(light);
-            }
-        }
-
-        // Add pillars in larger rooms
-        if (room.width >= 6 && room.height >= 6 && Math.random() < 0.5) {
-            const cx = (room.x + room.width / 2) * this.tileSize;
-            const cz = (room.y + room.height / 2) * this.tileSize;
-            this.placeModel('pillar', cx - this.tileSize, 0, cz - this.tileSize, 0, 1.5);
-            this.placeModel('pillar', cx + this.tileSize, 0, cz - this.tileSize, 0, 1.5);
-            this.placeModel('pillar', cx - this.tileSize, 0, cz + this.tileSize, 0, 1.5);
-            this.placeModel('pillar', cx + this.tileSize, 0, cz + this.tileSize, 0, 1.5);
-        }
-
-        // Add barrels
-        if (Math.random() < 0.4) {
-            const bx = (room.x + 1 + Math.random() * (room.width - 2)) * this.tileSize;
-            const bz = (room.y + 1 + Math.random() * (room.height - 2)) * this.tileSize;
-            this.placeModel('barrel', bx, 0, bz, Math.random() * Math.PI * 2, 1.5);
+        // MINIMAL decorations for performance - NO point lights
+        // Only add one torch per room (no light)
+        if (Math.random() < 0.3) {
+            const worldX = (room.x + 1) * this.tileSize;
+            const worldZ = (room.y + 1) * this.tileSize;
+            this.placeModel('torch', worldX, 0, worldZ, 0, 1.5);
         }
     }
 
@@ -425,9 +390,12 @@ export class DungeonBuilder {
     getSpawnPosition() {
         if (this.rooms.length > 0) {
             const spawn = this.rooms[0];
+            // Use floor to match the actual spawn tile position (from addSpecialTiles)
+            const sx = Math.floor(spawn.centerX);
+            const sy = Math.floor(spawn.centerY);
             return {
-                x: spawn.centerX * this.tileSize,
-                z: spawn.centerY * this.tileSize
+                x: sx * this.tileSize,
+                z: sy * this.tileSize
             };
         }
         return { x: this.width * this.tileSize / 2, z: this.height * this.tileSize / 2 };

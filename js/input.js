@@ -24,6 +24,9 @@ export class InputManager {
         // Key states for abilities
         this.keys = {};
 
+        // Skillshot aiming state
+        this.aimingAbility = null;
+
         this.setupEventListeners();
     }
 
@@ -60,8 +63,11 @@ export class InputManager {
                 break;
 
             case 'q':
-                // Q ability - Cleave
-                this.game.player.useCleave(this.game.enemies);
+                // Q ability - Cleave (skillshot - hold to aim, release to fire)
+                if (this.game.player.showCleaveIndicator) {
+                    this.aimingAbility = 'q';
+                    this.game.player.showCleaveIndicator(true);
+                }
                 break;
 
             case 'w':
@@ -92,6 +98,43 @@ export class InputManager {
     onKeyUp(e) {
         const key = e.key.toLowerCase();
         this.keys[key] = false;
+
+        // Fire cleave skillshot on Q release
+        if (key === 'q' && this.aimingAbility === 'q') {
+            this.aimingAbility = null;
+            if (this.game.player.showCleaveIndicator) {
+                this.game.player.showCleaveIndicator(false);
+            }
+            if (this.game.player.useCleaveSkillshot) {
+                // Get direction from player to mouse
+                const dir = {
+                    x: this.mouseWorldPos.x - this.game.player.position.x,
+                    z: this.mouseWorldPos.z - this.game.player.position.z
+                };
+                const len = Math.sqrt(dir.x * dir.x + dir.z * dir.z);
+                if (len > 0) {
+                    dir.x /= len;
+                    dir.z /= len;
+                }
+                this.game.player.useCleaveSkillshot(dir, this.game.enemies);
+            }
+        }
+    }
+
+    // Check if currently aiming a skillshot
+    isAiming() {
+        return this.aimingAbility !== null;
+    }
+
+    // Get aim direction from player to mouse
+    getAimDirection(playerPos) {
+        const dx = this.mouseWorldPos.x - playerPos.x;
+        const dz = this.mouseWorldPos.z - playerPos.z;
+        const len = Math.sqrt(dx * dx + dz * dz);
+        if (len > 0) {
+            return { x: dx / len, z: dz / len };
+        }
+        return { x: 0, z: 1 };
     }
 
     onMouseDown(e) {
@@ -177,7 +220,7 @@ export class InputManager {
 
         if (clickedEnemy) {
             this.game.player.setTarget(clickedEnemy);
-            this.game.updateTargetFrame(clickedEnemy);
+            // Target frame UI is updated automatically in game.updateUI()
         } else {
             // Clear target if clicking empty space
             this.game.clearTarget();

@@ -14,13 +14,13 @@ export class Game {
         this.canvas = canvas;
         this.clock = new THREE.Clock();
 
-        // Three.js core
+        // Three.js core - PERFORMANCE OPTIMIZED
         this.scene = new THREE.Scene();
-        this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+        this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        this.renderer.setPixelRatio(1); // Fixed at 1 for performance
         this.renderer.shadowMap.enabled = true;
-        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        this.renderer.shadowMap.type = THREE.BasicShadowMap; // Fastest shadow type
 
         // Sky gradient - create a simple gradient background
         this.scene.background = new THREE.Color(0x88bbee);
@@ -86,7 +86,7 @@ export class Game {
         this.clearScene();
 
         // Setup fresh game
-        this.setupScene();
+        await this.setupScene();
         this.setupLighting();
         this.setupPlayer();
 
@@ -142,12 +142,12 @@ export class Game {
     updateAbilityLabels() {
         if (this.selectedClass === 'mage') {
             document.querySelector('#ability-q .name').textContent = 'Blizzard';
-            document.querySelector('#ability-f .name').textContent = 'Flame Wave';
+            document.querySelector('#ability-w .name').textContent = 'Flame Wave';
             document.querySelector('#ability-e .name').textContent = 'Burn Aura';
             document.querySelector('#ability-r .name').textContent = 'Backstep';
         } else {
             document.querySelector('#ability-q .name').textContent = 'Cleave';
-            document.querySelector('#ability-f .name').textContent = 'Bladestorm';
+            document.querySelector('#ability-w .name').textContent = 'Bladestorm';
             document.querySelector('#ability-e .name').textContent = 'Parry';
             document.querySelector('#ability-r .name').textContent = 'Charge';
         }
@@ -208,121 +208,55 @@ export class Game {
             this.dungeon.build();
 
             // Use dungeon for walkability checks
+            // Note: input.js calls isWalkable with TILE coords, so convert to world coords
+            const tileSize = this.dungeon.tileSize;
             this.tileMap = {
-                isWalkable: (x, y) => this.dungeon.isWalkable(x * 2, y * 2),
+                isWalkable: (tileX, tileY) => {
+                    // Convert tile coords to world coords for dungeon check
+                    const worldX = tileX * tileSize;
+                    const worldZ = tileY * tileSize;
+                    return this.dungeon.isWalkable(worldX, worldZ);
+                },
                 worldToTile: (x, z) => this.dungeon.worldToTile(x, z),
                 tileToWorld: (x, y) => this.dungeon.tileToWorld(x, y),
                 showHoverAt: () => {},
-                dispose: () => {}
+                dispose: () => {},
+                width: this.dungeon.width,
+                height: this.dungeon.height,
+                tileSize: tileSize
             };
 
-            // Dark dungeon atmosphere
-            this.scene.background = new THREE.Color(0x111122);
-            this.scene.fog = new THREE.FogExp2(0x111122, 0.02);
+            // Dark dungeon atmosphere - NO fog for performance
+            this.scene.background = new THREE.Color(0x2a2a3e);
+            this.scene.fog = null;
         } else {
             // Boss mode uses simple tile map
             this.tileMap = new TileMap(this.scene);
         }
     }
 
-    async addScenery() {
-        // Try to load KayKit environment assets
-        this.environment = new EnvironmentLoader(this.scene);
-        try {
-            await this.environment.loadAllModels();
-            this.environment.createArenaEnvironment();
-            console.log('KayKit environment loaded');
-        } catch (error) {
-            console.warn('Failed to load KayKit assets, using fallback scenery');
-            this.addFallbackScenery();
-        }
-    }
-
-    addFallbackScenery() {
-        // Simple trees as cylinders with sphere tops
-        const treePositions = [
-            [-15, 10], [-20, -5], [25, 15], [30, -20], [-25, -25],
-            [18, -12], [-10, 25], [35, 5], [-30, 15], [5, -30]
-        ];
-
-        for (const [x, z] of treePositions) {
-            this.addTree(x, z);
-        }
-
-        // Rocks
-        const rockPositions = [
-            [-8, 5], [12, -8], [-5, -15], [20, 10], [-18, -10]
-        ];
-
-        for (const [x, z] of rockPositions) {
-            this.addRock(x, z);
-        }
-    }
-
-    addTree(x, z) {
-        const trunkGeometry = new THREE.CylinderGeometry(0.3, 0.4, 3, 8);
-        const trunkMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
-        const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
-        trunk.position.set(x, 1.5, z);
-        trunk.castShadow = true;
-        this.scene.add(trunk);
-
-        const foliageGeometry = new THREE.SphereGeometry(2, 8, 6);
-        const foliageMaterial = new THREE.MeshStandardMaterial({ color: 0x228B22 });
-        const foliage = new THREE.Mesh(foliageGeometry, foliageMaterial);
-        foliage.position.set(x, 4, z);
-        foliage.castShadow = true;
-        this.scene.add(foliage);
-    }
-
-    addRock(x, z) {
-        const rockGeometry = new THREE.DodecahedronGeometry(0.8, 0);
-        const rockMaterial = new THREE.MeshStandardMaterial({
-            color: 0x666666,
-            roughness: 0.9
-        });
-        const rock = new THREE.Mesh(rockGeometry, rockMaterial);
-        rock.position.set(x, 0.4, z);
-        rock.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
-        rock.scale.set(1, 0.6, 1);
-        rock.castShadow = true;
-        this.scene.add(rock);
-    }
-
     setupLighting() {
-        // Ambient light - warmer tone
-        const ambient = new THREE.AmbientLight(0xffeedd, 0.35);
+        // Ambient light - brighter for visibility
+        const ambient = new THREE.AmbientLight(0xffffff, 0.5);
         this.scene.add(ambient);
 
-        // Main directional light (sun) - golden hour feel
-        const sun = new THREE.DirectionalLight(0xfff4e5, 1.2);
-        sun.position.set(50, 80, 30);
+        // Main directional light - OPTIMIZED shadows
+        const sun = new THREE.DirectionalLight(0xfff4e5, 1.0);
+        sun.position.set(30, 50, 30);
         sun.castShadow = true;
-        sun.shadow.mapSize.width = 2048;
-        sun.shadow.mapSize.height = 2048;
-        sun.shadow.camera.near = 0.5;
-        sun.shadow.camera.far = 250;
-        sun.shadow.camera.left = -60;
-        sun.shadow.camera.right = 60;
-        sun.shadow.camera.top = 60;
-        sun.shadow.camera.bottom = -60;
-        sun.shadow.bias = -0.0001;
-        sun.shadow.normalBias = 0.02;
+        sun.shadow.mapSize.width = 512;  // Much smaller for performance
+        sun.shadow.mapSize.height = 512;
+        sun.shadow.camera.near = 1;
+        sun.shadow.camera.far = 100;
+        sun.shadow.camera.left = -40;
+        sun.shadow.camera.right = 40;
+        sun.shadow.camera.top = 40;
+        sun.shadow.camera.bottom = -40;
         this.scene.add(sun);
 
-        // Fill light from opposite side - cool blue tint
-        const fillLight = new THREE.DirectionalLight(0x88aaff, 0.3);
-        fillLight.position.set(-30, 40, -20);
-        this.scene.add(fillLight);
-
-        // Hemisphere light for sky/ground color blending
-        const hemi = new THREE.HemisphereLight(0x88ccff, 0x446633, 0.4);
+        // Single hemisphere light instead of multiple lights
+        const hemi = new THREE.HemisphereLight(0x88ccff, 0x444422, 0.4);
         this.scene.add(hemi);
-
-        // Rim light for character highlighting
-        const rimLight = new THREE.DirectionalLight(0xffffff, 0.2);
-        rimLight.position.set(0, 20, -50);
-        this.scene.add(rimLight);
     }
 
     setupPlayer() {
@@ -352,11 +286,11 @@ export class Game {
         // Use isometric camera for tile-based gameplay
         this.cameraController = new IsometricCamera(this.camera);
 
-        // Center camera on player spawn
+        // Center camera on player spawn - snap immediately
         if (this.player) {
-            this.cameraController.setTarget(this.player.position.clone());
+            this.cameraController.setTarget(this.player.position.clone(), true);
         } else {
-            this.cameraController.setTarget(new THREE.Vector3(15, 0, 15));
+            this.cameraController.setTarget(new THREE.Vector3(15, 0, 15), true);
         }
     }
 
@@ -371,9 +305,9 @@ export class Game {
             boss.name = 'Slime Boss';
             this.enemies.push(boss);
         } else if (this.gameMode === 'mobbing' && this.dungeon) {
-            // Mobbing mode - spawn enemies in dungeon rooms
-            const spawnPositions = this.dungeon.getEnemySpawnPositions(10);
-            const skeletonTypes = ['warrior', 'mage', 'minion', 'rogue'];
+            // Mobbing mode - spawn fewer enemies for performance
+            const spawnPositions = this.dungeon.getEnemySpawnPositions(4);
+            const skeletonTypes = ['warrior', 'mage'];
 
             for (let i = 0; i < spawnPositions.length; i++) {
                 const pos = spawnPositions[i];
@@ -526,6 +460,12 @@ export class Game {
         // Update player (click-to-move)
         this.player.update(deltaTime);
 
+        // Update cleave indicator while aiming
+        if (this.input && this.input.isAiming() && this.player.updateCleaveIndicator) {
+            const aimDir = this.input.getAimDirection(this.player.position);
+            this.player.updateCleaveIndicator(aimDir);
+        }
+
         // Update camera to follow player
         this.cameraController.setTarget(this.player.position);
         this.cameraController.update(deltaTime);
@@ -616,12 +556,6 @@ export class Game {
         if (this.particles) {
             this.particles.update(deltaTime);
 
-            // Ambient particles
-            this.ambientTimer += deltaTime;
-            if (this.ambientTimer > 0.1) {
-                this.ambientTimer = 0;
-                this.particles.ambientParticles(this.player.position, 30);
-            }
 
             // Fire pool effects
             for (const hazard of this.groundHazards) {
@@ -722,13 +656,13 @@ export class Game {
         // Ability cooldowns - different for each class
         if (this.selectedClass === 'mage') {
             this.updateAbilityCooldown('q', this.player.abilities.blizzard);
-            this.updateAbilityCooldown('f', this.player.abilities.flameWave);
+            this.updateAbilityCooldown('w', this.player.abilities.flameWave);
             this.updateAbilityCooldown('e', this.player.abilities.burnAura);
             this.updateAbilityCooldown('r', this.player.abilities.backstep);
             this.updateAbilityCooldown('1', this.player.abilities.potion);
         } else {
             this.updateAbilityCooldown('q', this.player.abilities.cleave);
-            this.updateAbilityCooldown('f', this.player.abilities.bladestorm);
+            this.updateAbilityCooldown('w', this.player.abilities.bladestorm);
             this.updateAbilityCooldown('e', this.player.abilities.parry);
             this.updateAbilityCooldown('r', this.player.abilities.charge);
             this.updateAbilityCooldown('1', this.player.abilities.potion);

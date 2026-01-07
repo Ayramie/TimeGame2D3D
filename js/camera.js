@@ -26,8 +26,13 @@ export class IsometricCamera {
         this.updateCameraPosition();
     }
 
-    setTarget(position) {
+    setTarget(position, immediate = false) {
         this.targetPosition.copy(position);
+        // Snap immediately if requested (useful for initial spawn)
+        if (immediate) {
+            this.currentPosition.copy(position);
+            this.updateCameraPosition();
+        }
     }
 
     handleScroll(delta) {
@@ -58,20 +63,4 @@ export class IsometricCamera {
 
         this.updateCameraPosition();
     }
-}
-
-// Keep ThirdPersonCamera for backwards compatibility but won't be used
-export class ThirdPersonCamera {
-    constructor(camera, target) {
-        this.camera = camera;
-        this.target = target;
-        this.distance = 10;
-        this.yaw = 0;
-        this.pitch = 0.3;
-    }
-
-    update() {}
-    rotateCharacter() {}
-    rotateCamera() {}
-    handleScroll() {}
 }

@@ -1,41 +1,26 @@
 import * as THREE from 'three';
-import { CharacterController } from './character.js';
+import { PlayerBase } from './playerBase.js';
 
-export class Player {
+export class Player extends PlayerBase {
     constructor(scene, game, characterClass = 'warrior') {
-        this.scene = scene;
-        this.game = game; // Reference to game for effects
-        this.characterClass = characterClass;
-        this.position = new THREE.Vector3(0, 0, 0);
-        this.velocity = new THREE.Vector3(0, 0, 0);
-        this.rotation = 0; // Y-axis rotation
+        super(scene, game, characterClass);
 
-        // Stats
+        // Warrior-specific stats
         this.maxHealth = 100;
         this.health = this.maxHealth;
         this.moveSpeed = 8;
-        this.jumpForce = 12;
-        this.isGrounded = true;
-
-        // Combat
-        this.targetEnemy = null;
         this.attackRange = 2.5;
-        this.autoAttackCooldown = 0;
-        this.autoAttackCooldownMax = 0.8; // Faster attacks
+        this.autoAttackCooldownMax = 0.8;
         this.autoAttackDamage = 25;
 
-        // Click-to-move
-        this.moveTarget = null; // {x, z} world position
-        this.isMoving = false;
-
-        // Abilities
+        // Warrior Abilities
         this.abilities = {
             cleave: {
                 cooldown: 5,
                 cooldownRemaining: 0,
                 damage: 40,
                 range: 5.5,
-                angle: Math.PI * 0.7, // 126 degrees (wider)
+                angle: Math.PI * 0.7,
                 isCharging: false,
                 isActive: false
             },
@@ -73,37 +58,12 @@ export class Player {
             }
         };
 
-        // Character controller for animated model
-        this.character = new CharacterController(scene, this.characterClass);
-        this.useAnimatedCharacter = false;
-        this.characterLoading = false;
+        // Animation state for fallback mesh
+        this.walkCycle = 0;
 
-        // Visual representation (fallback)
+        // Create fallback mesh and load animated character
         this.createMesh();
-
-        // Try to load animated character
         this.loadCharacter();
-    }
-
-    async loadCharacter() {
-        this.characterLoading = true;
-        // Hide fallback mesh immediately while loading
-        this.group.visible = false;
-
-        try {
-            const success = await this.character.load();
-            if (success) {
-                this.useAnimatedCharacter = true;
-                console.log('Using animated character model');
-            } else {
-                // Show fallback if loading failed
-                this.group.visible = true;
-            }
-        } catch (error) {
-            console.warn('Failed to load animated character, using fallback:', error);
-            this.group.visible = true;
-        }
-        this.characterLoading = false;
     }
 
     createMesh() {
@@ -143,7 +103,6 @@ export class Player {
         this.group.add(chest);
 
         // === LEGS ===
-        // Left leg
         this.leftLeg = new THREE.Group();
         const leftThighGeometry = new THREE.CapsuleGeometry(0.12, 0.3, 4, 8);
         const leftThigh = new THREE.Mesh(leftThighGeometry, darkArmorMaterial);
@@ -163,7 +122,6 @@ export class Player {
         this.leftLeg.position.set(-0.15, 0.8, 0);
         this.group.add(this.leftLeg);
 
-        // Right leg
         this.rightLeg = new THREE.Group();
         const rightThighGeometry = new THREE.CapsuleGeometry(0.12, 0.3, 4, 8);
         const rightThigh = new THREE.Mesh(rightThighGeometry, darkArmorMaterial);
@@ -184,7 +142,6 @@ export class Player {
         this.group.add(this.rightLeg);
 
         // === ARMS ===
-        // Left arm (shield arm)
         this.leftArm = new THREE.Group();
         const leftShoulderGeometry = new THREE.SphereGeometry(0.12, 8, 8);
         const leftShoulder = new THREE.Mesh(leftShoulderGeometry, armorMaterial);
@@ -215,7 +172,6 @@ export class Player {
         this.leftArm.rotation.z = 0.2;
         this.group.add(this.leftArm);
 
-        // Right arm (sword arm)
         this.rightArm = new THREE.Group();
         const rightShoulderGeometry = new THREE.SphereGeometry(0.12, 8, 8);
         const rightShoulder = new THREE.Mesh(rightShoulderGeometry, armorMaterial);
@@ -253,7 +209,7 @@ export class Player {
         helmet.position.y = 1.75;
         this.group.add(helmet);
 
-        // Eyes (to show facing direction)
+        // Eyes
         const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
         const eyeGeometry = new THREE.SphereGeometry(0.04, 8, 8);
 
@@ -278,7 +234,6 @@ export class Player {
         blade.position.y = 0.5;
         swordGroup.add(blade);
 
-        // Blade tip
         const tipGeometry = new THREE.ConeGeometry(0.03, 0.15, 4);
         const tip = new THREE.Mesh(tipGeometry, bladeMaterial);
         tip.position.y = 1.05;
@@ -299,34 +254,16 @@ export class Player {
         handle.position.y = -0.12;
         swordGroup.add(handle);
 
-        // Attach sword to right hand
         swordGroup.position.set(0, -0.55, 0.1);
         swordGroup.rotation.x = -0.3;
         this.swordMesh = swordGroup;
         this.rightArm.add(swordGroup);
 
-        // Animation state
-        this.walkCycle = 0;
-
         this.scene.add(this.group);
     }
 
-    setTarget(enemy) {
-        // Clear previous target highlight
-        if (this.targetEnemy && this.targetEnemy.setTargeted) {
-            this.targetEnemy.setTargeted(false);
-        }
-
-        this.targetEnemy = enemy;
-
-        // Set new target highlight
-        if (enemy && enemy.setTargeted) {
-            enemy.setTargeted(true);
-        }
-    }
-
     update(deltaTime) {
-        // Process movement (click-to-move)
+        // Process movement
         const isMoving = this.handleMovement(deltaTime);
 
         // Process abilities
@@ -352,17 +289,14 @@ export class Player {
             this.bladestormTick(this.game.enemies);
         }
 
-        // Update visual position - use animated character if loaded
+        // Update visuals
         if (this.useAnimatedCharacter) {
-            this.character.setPosition(this.position.x, this.position.y, this.position.z);
-            this.character.setRotation(this.rotation);
-            this.character.update(deltaTime, isMoving, true, this.isGrounded);
+            this.updateVisuals(deltaTime, isMoving);
         } else {
-            // Fallback to procedural mesh
+            // Fallback mesh with walk animation
             this.group.position.copy(this.position);
             this.group.rotation.y = this.rotation;
 
-            // Walk animation for fallback
             if (isMoving && this.isGrounded) {
                 this.walkCycle += deltaTime * 12;
                 const legSwing = Math.sin(this.walkCycle) * 0.5;
@@ -382,65 +316,9 @@ export class Player {
         }
     }
 
-    // Set move target for click-to-move
-    setMoveTarget(x, z) {
-        this.moveTarget = { x, z };
-        this.isMoving = true;
-    }
-
-    // Clear move target
-    clearMoveTarget() {
-        this.moveTarget = null;
-        this.isMoving = false;
-    }
-
-    handleMovement(deltaTime) {
-        let isMoving = false;
-
-        // Click-to-move: move toward target
-        if (this.moveTarget) {
-            const dx = this.moveTarget.x - this.position.x;
-            const dz = this.moveTarget.z - this.position.z;
-            const dist = Math.sqrt(dx * dx + dz * dz);
-
-            if (dist > 0.1) {
-                isMoving = true;
-
-                // Calculate direction
-                const dirX = dx / dist;
-                const dirZ = dz / dist;
-
-                // Move toward target
-                const moveAmount = Math.min(this.moveSpeed * deltaTime, dist);
-                this.position.x += dirX * moveAmount;
-                this.position.z += dirZ * moveAmount;
-
-                // Face movement direction
-                this.rotation = Math.atan2(dirX, dirZ);
-            } else {
-                // Reached target
-                this.clearMoveTarget();
-            }
-        }
-
-        // Keep in bounds (tile map is 30x30)
-        const bounds = 29;
-        this.position.x = Math.max(0, Math.min(bounds, this.position.x));
-        this.position.z = Math.max(0, Math.min(bounds, this.position.z));
-
-        this.isMoving = isMoving;
-        return isMoving;
-    }
-
     updateAbilities(deltaTime) {
-        // Update cooldowns
-        for (const key in this.abilities) {
-            const ability = this.abilities[key];
-            if (ability.cooldownRemaining > 0) {
-                ability.cooldownRemaining -= deltaTime;
-                if (ability.cooldownRemaining < 0) ability.cooldownRemaining = 0;
-            }
-        }
+        // Update cooldowns (from base class pattern)
+        this.updateAbilityCooldowns(deltaTime);
 
         // Parry duration
         if (this.abilities.parry.isActive) {
@@ -460,12 +338,22 @@ export class Player {
         }
     }
 
-    // Target-based auto attack
+    // Override takeDamage to add parry check
+    takeDamage(amount) {
+        // Check parry
+        if (this.abilities.parry.isActive) {
+            // Parry is handled by tryParry, called by attacker
+            return;
+        }
+
+        // Call parent takeDamage
+        super.takeDamage(amount);
+    }
+
     performAutoAttack() {
         if (this.autoAttackCooldown > 0) return false;
         if (!this.targetEnemy || !this.targetEnemy.isAlive) return false;
 
-        // Check range (horizontal distance so jumping doesn't affect range)
         const dx = this.targetEnemy.position.x - this.position.x;
         const dz = this.targetEnemy.position.z - this.position.z;
         const horizontalDist = Math.sqrt(dx * dx + dz * dz);
@@ -479,12 +367,11 @@ export class Player {
 
         // Play attack animation
         if (this.useAnimatedCharacter) {
-            // Cycle through attack animations
             this.attackAnimIndex = ((this.attackAnimIndex || 0) % 4) + 1;
             this.character.playAttack(this.attackAnimIndex);
         }
 
-        // Visual swing effect toward target
+        // Visual swing effect
         if (this.game && this.game.effects) {
             this.game.effects.createSwingEffect(this.position, this.rotation, 0xffffff);
         }
@@ -498,7 +385,7 @@ export class Player {
             this.game.particles.swingTrail(startPos, endPos);
         }
 
-        // Deal damage and show damage number
+        // Deal damage
         this.targetEnemy.takeDamage(this.autoAttackDamage, this);
         if (this.game && this.game.effects) {
             this.game.effects.createDamageNumber(this.targetEnemy.position, this.autoAttackDamage);
@@ -507,24 +394,22 @@ export class Player {
         return true;
     }
 
-    // Ability: Cleave
+    // ========== WARRIOR ABILITIES ==========
+
     useCleave(enemies) {
         const ability = this.abilities.cleave;
         if (ability.cooldownRemaining > 0) return false;
 
         ability.cooldownRemaining = ability.cooldown;
 
-        // Play attack animation for cleave
         if (this.useAnimatedCharacter) {
-            this.character.playAttack(2); // Use a different attack for cleave
+            this.character.playAttack(2);
         }
 
-        // Visual effect
         if (this.game && this.game.effects) {
             this.game.effects.createCleaveEffect(this.position, this.rotation);
         }
 
-        // Particle effect - cleave wave
         if (this.game && this.game.particles) {
             const forward = new THREE.Vector3(
                 Math.sin(this.rotation),
@@ -534,19 +419,16 @@ export class Player {
             this.game.particles.cleaveWave(this.position, forward, ability.range);
         }
 
-        // Hit enemies in front cone - uses horizontal distance so jumping doesn't miss
         let hitCount = 0;
         for (const enemy of enemies) {
             if (!enemy.isAlive) continue;
 
-            // Horizontal distance only (ignore Y so attacks work while jumping)
             const dx = enemy.position.x - this.position.x;
             const dz = enemy.position.z - this.position.z;
             const horizontalDist = Math.sqrt(dx * dx + dz * dz);
 
             if (horizontalDist > ability.range) continue;
 
-            // Check if in cone (horizontal only)
             const toEnemy = new THREE.Vector3(dx, 0, dz).normalize();
             const forward = new THREE.Vector3(
                 Math.sin(this.rotation),
@@ -559,7 +441,6 @@ export class Player {
 
             if (angleToEnemy <= ability.angle / 2) {
                 enemy.takeDamage(ability.damage, this);
-                // Damage number for each hit
                 if (this.game && this.game.effects) {
                     this.game.effects.createDamageNumber(enemy.position, ability.damage);
                 }
@@ -570,7 +451,103 @@ export class Player {
         return hitCount > 0;
     }
 
-    // Ability: Bladestorm
+    createCleaveIndicator() {
+        const ability = this.abilities.cleave;
+        const group = new THREE.Group();
+
+        const geometry = new THREE.CircleGeometry(ability.range, 32, -ability.angle / 2, ability.angle);
+        const material = new THREE.MeshBasicMaterial({
+            color: 0xff6600,
+            transparent: true,
+            opacity: 0.35,
+            side: THREE.DoubleSide,
+            depthWrite: false
+        });
+        const cone = new THREE.Mesh(geometry, material);
+        cone.rotation.x = -Math.PI / 2;
+        cone.position.y = 0.1;
+        group.add(cone);
+
+        const edgeGeo = new THREE.RingGeometry(ability.range - 0.15, ability.range, 32, 1, -ability.angle / 2, ability.angle);
+        const edgeMat = new THREE.MeshBasicMaterial({
+            color: 0xffaa00,
+            transparent: true,
+            opacity: 0.7,
+            side: THREE.DoubleSide,
+            depthWrite: false
+        });
+        const edge = new THREE.Mesh(edgeGeo, edgeMat);
+        edge.rotation.x = -Math.PI / 2;
+        edge.position.y = 0.12;
+        group.add(edge);
+
+        return group;
+    }
+
+    showCleaveIndicator(show) {
+        if (!this.cleaveIndicator) {
+            this.cleaveIndicator = this.createCleaveIndicator();
+            this.scene.add(this.cleaveIndicator);
+        }
+        this.cleaveIndicator.visible = show;
+    }
+
+    updateCleaveIndicator(aimDir) {
+        if (!this.cleaveIndicator || !this.cleaveIndicator.visible) return;
+        this.cleaveIndicator.position.x = this.position.x;
+        this.cleaveIndicator.position.z = this.position.z;
+        this.cleaveIndicator.rotation.y = Math.atan2(aimDir.x, aimDir.z);
+    }
+
+    useCleaveSkillshot(direction, enemies) {
+        const ability = this.abilities.cleave;
+        if (ability.cooldownRemaining > 0) return false;
+
+        ability.cooldownRemaining = ability.cooldown;
+
+        const aimRotation = Math.atan2(direction.x, direction.z);
+        this.rotation = aimRotation;
+
+        if (this.useAnimatedCharacter) {
+            this.character.playAttack(2);
+        }
+
+        if (this.game && this.game.effects) {
+            this.game.effects.createCleaveEffect(this.position, aimRotation);
+        }
+
+        if (this.game && this.game.particles) {
+            const forward = new THREE.Vector3(direction.x, 0, direction.z);
+            this.game.particles.cleaveWave(this.position, forward, ability.range);
+        }
+
+        let hitCount = 0;
+        for (const enemy of enemies) {
+            if (!enemy.isAlive) continue;
+
+            const dx = enemy.position.x - this.position.x;
+            const dz = enemy.position.z - this.position.z;
+            const dist = Math.sqrt(dx * dx + dz * dz);
+
+            if (dist > ability.range) continue;
+
+            const toEnemy = new THREE.Vector3(dx, 0, dz).normalize();
+            const forward = new THREE.Vector3(direction.x, 0, direction.z).normalize();
+            const dot = forward.dot(toEnemy);
+            const angle = Math.acos(Math.min(1, Math.max(-1, dot)));
+
+            if (angle <= ability.angle / 2) {
+                enemy.takeDamage(ability.damage, this);
+                if (this.game && this.game.effects) {
+                    this.game.effects.createDamageNumber(enemy.position, ability.damage);
+                }
+                hitCount++;
+            }
+        }
+
+        return hitCount > 0;
+    }
+
     useBladestorm() {
         const ability = this.abilities.bladestorm;
         if (ability.cooldownRemaining > 0) return false;
@@ -579,12 +556,10 @@ export class Player {
         ability.isActive = true;
         ability.activeTime = 0;
 
-        // Play power up animation
         if (this.useAnimatedCharacter) {
             this.character.playPowerUp();
         }
 
-        // Visual effect - spinning blades around player
         if (this.game && this.game.effects) {
             const targetGroup = this.useAnimatedCharacter ? this.character.model : this.group;
             this.bladestormEffect = this.game.effects.createBladestormEffect(targetGroup);
@@ -599,13 +574,11 @@ export class Player {
         ability.activeTime = 0;
         ability.cooldownRemaining = ability.cooldown;
 
-        // Remove bladestorm visual effect
         if (this.bladestormEffect) {
             this.bladestormEffect.life = 0;
             this.bladestormEffect = null;
         }
 
-        // Throw disk projectile toward cursor/target
         if (this.game && this.game.effects) {
             const forward = new THREE.Vector3(
                 Math.sin(this.rotation),
@@ -620,15 +593,12 @@ export class Player {
         const ability = this.abilities.bladestorm;
         if (!ability.isActive) return;
 
-        // Spin particles
         if (this.game && this.game.particles && Math.random() < 0.5) {
             this.game.particles.bladestormSpin(this.position);
         }
 
-        // Track damage for periodic damage numbers
         if (!this.bladestormDamageAccum) this.bladestormDamageAccum = {};
 
-        // Damage nearby enemies
         for (const enemy of enemies) {
             if (!enemy.isAlive) continue;
 
@@ -639,14 +609,12 @@ export class Player {
                 const damage = ability.spinDamage * 0.1;
                 enemy.takeDamage(damage, this);
 
-                // Accumulate damage for this enemy
                 const id = enemy.id || enemies.indexOf(enemy);
                 if (!this.bladestormDamageAccum[id]) {
                     this.bladestormDamageAccum[id] = 0;
                 }
                 this.bladestormDamageAccum[id] += damage;
 
-                // Show damage number every 0.5 worth of damage accumulated
                 if (this.bladestormDamageAccum[id] >= 5) {
                     if (this.game && this.game.effects) {
                         this.game.effects.createDamageNumber(enemy.position, Math.round(this.bladestormDamageAccum[id]));
@@ -657,7 +625,6 @@ export class Player {
         }
     }
 
-    // Ability: Parry
     useParry() {
         const ability = this.abilities.parry;
         if (ability.cooldownRemaining > 0) return false;
@@ -667,12 +634,10 @@ export class Player {
         ability.activeTime = 0;
         ability.cooldownRemaining = ability.cooldown;
 
-        // Play block animation
         if (this.useAnimatedCharacter) {
             this.character.playBlock();
         }
 
-        // Visual parry stance effect
         if (this.game && this.game.effects) {
             this.game.effects.createParryEffect(this.position);
         }
@@ -684,11 +649,9 @@ export class Player {
         const ability = this.abilities.parry;
         if (!ability.isActive) return false;
 
-        // Successful parry!
         const isPerfect = ability.activeTime <= ability.perfectWindow;
         const damage = isPerfect ? ability.perfectDamage : ability.riposteDamage;
 
-        // Riposte visual effect
         if (this.game && this.game.effects && attacker) {
             this.game.effects.createRiposteEffect(this.position, attacker.position);
             this.game.effects.createDamageNumber(attacker.position, damage, false, isPerfect);
@@ -703,7 +666,6 @@ export class Player {
         return true;
     }
 
-    // Ability: Charge
     useCharge() {
         const ability = this.abilities.charge;
         if (ability.cooldownRemaining > 0) return false;
@@ -713,7 +675,6 @@ export class Player {
 
         const startPos = this.position.clone();
 
-        // Dash to target
         const dir = new THREE.Vector3().subVectors(this.targetEnemy.position, this.position);
         dir.y = 0;
         const dist = dir.length();
@@ -724,94 +685,22 @@ export class Player {
             this.rotation = Math.atan2(dir.x, dir.z);
         }
 
-        // Charge trail effect
         if (this.game && this.game.effects) {
             this.game.effects.createChargeEffect(startPos, this.position);
         }
 
-        // Particle trail
         if (this.game && this.game.particles) {
-            // Create trail along charge path
             const trailDir = new THREE.Vector3().subVectors(this.position, startPos).normalize();
             const steps = Math.ceil(dist / 1.5);
             for (let i = 0; i < steps; i++) {
                 const pos = startPos.clone().addScaledVector(trailDir, i * 1.5);
                 this.game.particles.chargeTrail(pos, trailDir);
             }
-            // Impact at destination
             this.game.particles.bounceImpact(this.position);
             this.game.addScreenShake(0.6);
         }
 
-        // Stun target
         this.targetEnemy.stun(ability.stunDuration);
         return true;
-    }
-
-    // Ability: Health Potion
-    usePotion() {
-        const ability = this.abilities.potion;
-        if (ability.cooldownRemaining > 0) return false;
-
-        ability.cooldownRemaining = ability.cooldown;
-        this.health = Math.min(this.maxHealth, this.health + ability.healAmount);
-
-        // Healing effect
-        if (this.game && this.game.effects) {
-            this.game.effects.createPotionEffect(this.position);
-            this.game.effects.createDamageNumber(this.position, ability.healAmount, true);
-        }
-
-        // Heal particles
-        if (this.game && this.game.particles) {
-            this.game.particles.healEffect(this.position);
-        }
-
-        return true;
-    }
-
-    takeDamage(amount) {
-        // Check parry
-        if (this.abilities.parry.isActive) {
-            // Parry is handled by tryParry, called by attacker
-            return;
-        }
-
-        this.health -= amount;
-
-        // Play impact animation
-        if (this.useAnimatedCharacter) {
-            this.character.playImpact();
-        }
-
-        // Hit particles
-        if (this.game && this.game.particles) {
-            this.game.particles.playerHit(this.position);
-            this.game.addScreenShake(Math.min(amount / 20, 0.5));
-        }
-
-        if (this.health <= 0) {
-            this.health = 0;
-            this.die();
-        }
-    }
-
-    die() {
-        console.log('Player died!');
-
-        // Play death animation
-        if (this.useAnimatedCharacter) {
-            this.character.playDeath();
-        }
-
-        // Reset for now
-        setTimeout(() => {
-            this.health = this.maxHealth;
-            this.position.set(0, 0, 0);
-            // Reset to idle after respawn
-            if (this.useAnimatedCharacter) {
-                this.character.playAnimation('idle', true);
-            }
-        }, 2000);
     }
 }

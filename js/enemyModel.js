@@ -18,10 +18,10 @@ export class EnemyModelController {
 
         // Skeleton model types
         const modelPaths = {
-            warrior: './assets/models/Skeleton_Warrior.glb',
-            mage: './assets/models/Skeleton_Mage.glb',
-            minion: './assets/models/Skeleton_Minion.glb',
-            rogue: './assets/models/Skeleton_Rogue.glb'
+            warrior: 'assets/models/Skeleton_Warrior.glb',
+            mage: 'assets/models/Skeleton_Mage.glb',
+            minion: 'assets/models/Skeleton_Minion.glb',
+            rogue: 'assets/models/Skeleton_Rogue.glb'
         };
 
         const modelPath = modelPaths[this.modelType] || modelPaths.warrior;
@@ -71,8 +71,8 @@ export class EnemyModelController {
 
     async loadAnimations(loader) {
         const animationFiles = [
-            './assets/models/Rig_Medium_General.glb',
-            './assets/models/Rig_Medium_MovementBasic.glb'
+            'assets/models/Rig_Medium_General.glb',
+            'assets/models/Rig_Medium_MovementBasic.glb'
         ];
 
         const animationMappings = {

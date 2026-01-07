@@ -1,28 +1,17 @@
 import * as THREE from 'three';
-import { CharacterController } from './character.js';
+import { PlayerBase } from './playerBase.js';
 
-export class Mage {
+export class Mage extends PlayerBase {
     constructor(scene, game, characterClass = 'mage') {
-        this.scene = scene;
-        this.game = game;
-        this.characterClass = characterClass;
-        this.position = new THREE.Vector3(0, 0, 0);
-        this.velocity = new THREE.Vector3(0, 0, 0);
-        this.rotation = 0;
+        super(scene, game, characterClass);
         this.className = 'Mage';
 
-        // Stats - Mage has less health but ranged attacks
+        // Mage-specific stats
         this.maxHealth = 80;
         this.health = this.maxHealth;
         this.moveSpeed = 7;
-        this.jumpForce = 12;
-        this.isGrounded = true;
-
-        // Combat - Ranged
-        this.targetEnemy = null;
-        this.attackRange = 15; // Much longer range
-        this.autoAttackCooldown = 0;
-        this.autoAttackCooldownMax = 1.0; // Slower but ranged
+        this.attackRange = 15;
+        this.autoAttackCooldownMax = 1.0;
         this.autoAttackDamage = 20;
 
         // Mage Abilities
@@ -30,8 +19,8 @@ export class Mage {
             blizzard: {
                 cooldown: 8,
                 cooldownRemaining: 0,
-                damage: 10, // per tick
-                slowAmount: 0.5, // 50% slow
+                damage: 10,
+                slowAmount: 0.5,
                 duration: 4,
                 radius: 5,
                 isActive: false
@@ -41,15 +30,15 @@ export class Mage {
                 cooldownRemaining: 0,
                 damage: 35,
                 range: 8,
-                angle: Math.PI * 0.6, // 108 degrees
+                angle: Math.PI * 0.6,
                 isActive: false
             },
             burnAura: {
-                cooldown: 1, // Toggle cooldown
+                cooldown: 1,
                 cooldownRemaining: 0,
-                damage: 5, // per tick
+                damage: 5,
                 radius: 4,
-                manaCost: 2, // per second (future mana system)
+                manaCost: 2,
                 isActive: false,
                 tickTimer: 0
             },
@@ -67,45 +56,16 @@ export class Mage {
             }
         };
 
-        // Projectiles for auto-attack
+        // Mage-specific systems
         this.projectiles = [];
-
-        // Active ground effects (blizzard zones)
         this.groundEffects = [];
 
-        // Character controller for animated model
-        this.character = new CharacterController(scene, this.characterClass);
-        this.useAnimatedCharacter = false;
-        this.characterLoading = false;
-
-        // Visual representation (fallback)
+        // Create fallback mesh and load animated character
         this.createMesh();
-
-        // Try to load animated character
         this.loadCharacter();
     }
 
-    async loadCharacter() {
-        this.characterLoading = true;
-        this.group.visible = false;
-
-        try {
-            const success = await this.character.load();
-            if (success) {
-                this.useAnimatedCharacter = true;
-                console.log('Mage: Using animated character model');
-            } else {
-                this.group.visible = true;
-            }
-        } catch (error) {
-            console.warn('Failed to load mage character, using fallback:', error);
-            this.group.visible = true;
-        }
-        this.characterLoading = false;
-    }
-
     createMesh() {
-        // Simple mage fallback mesh - robed figure
         this.group = new THREE.Group();
 
         const robeMaterial = new THREE.MeshStandardMaterial({
@@ -158,27 +118,15 @@ export class Mage {
         this.scene.add(this.group);
     }
 
-    setTarget(enemy) {
-        if (this.targetEnemy && this.targetEnemy.setTargeted) {
-            this.targetEnemy.setTargeted(false);
-        }
-        this.targetEnemy = enemy;
-        if (enemy && enemy.setTargeted) {
-            enemy.setTargeted(true);
-        }
-    }
-
-    update(deltaTime, input, cameraController) {
+    update(deltaTime) {
         // Process movement
-        const isMoving = this.handleMovement(deltaTime, input, cameraController, input.rightMouseDown);
+        const isMoving = this.handleMovement(deltaTime);
 
         // Process abilities
-        this.updateAbilities(deltaTime);
+        this.updateAbilityCooldowns(deltaTime);
 
-        // Update projectiles
+        // Update mage-specific systems
         this.updateProjectiles(deltaTime);
-
-        // Update ground effects
         this.updateGroundEffects(deltaTime);
 
         // Burn aura tick damage
@@ -199,100 +147,8 @@ export class Mage {
             }
         }
 
-        // Update visual position
-        if (this.useAnimatedCharacter) {
-            this.character.setPosition(this.position.x, this.position.y, this.position.z);
-            this.character.setRotation(this.rotation);
-            this.character.update(deltaTime, isMoving, true, this.isGrounded);
-        } else {
-            this.group.position.copy(this.position);
-            this.group.rotation.y = this.rotation;
-        }
-    }
-
-    handleMovement(deltaTime, input, cameraController, isMouseTurning = false) {
-        const forwardBack = new THREE.Vector3();
-        if (input.keys.w || input.keys.arrowup) forwardBack.z -= 1;
-        if (input.keys.s || input.keys.arrowdown) forwardBack.z += 1;
-
-        const strafe = new THREE.Vector3();
-        if (input.keys.a || input.keys.arrowleft) strafe.x -= 1;
-        if (input.keys.d || input.keys.arrowright) strafe.x += 1;
-
-        const moveDir = new THREE.Vector3();
-        const cameraYaw = -cameraController.yaw;
-        const cos = Math.cos(cameraYaw);
-        const sin = Math.sin(cameraYaw);
-
-        if (forwardBack.length() > 0) {
-            const rotatedZ = forwardBack.z * cos;
-            const rotatedX = -forwardBack.z * sin;
-            moveDir.x += rotatedX;
-            moveDir.z += rotatedZ;
-        }
-
-        if (strafe.length() > 0) {
-            const rotatedX = strafe.x * cos;
-            const rotatedZ = strafe.x * sin;
-            moveDir.x += rotatedX;
-            moveDir.z += rotatedZ;
-        }
-
-        let isMoving = false;
-        if (moveDir.length() > 0) {
-            isMoving = true;
-            moveDir.normalize();
-
-            this.position.x += moveDir.x * this.moveSpeed * deltaTime;
-            this.position.z += moveDir.z * this.moveSpeed * deltaTime;
-
-            if (forwardBack.z < 0 && !isMouseTurning) {
-                const forwardDir = new THREE.Vector3(-forwardBack.z * sin, 0, forwardBack.z * cos);
-                if (forwardDir.length() > 0) {
-                    this.rotation = Math.atan2(forwardDir.x, forwardDir.z);
-                }
-            }
-        }
-
-        // Jumping
-        if (input.keys[' '] && this.isGrounded) {
-            this.velocity.y = this.jumpForce;
-            this.isGrounded = false;
-            input.keys[' '] = false;
-
-            if (this.useAnimatedCharacter) {
-                this.character.playJump();
-            }
-        }
-
-        // Gravity
-        if (!this.isGrounded) {
-            this.velocity.y -= 30 * deltaTime;
-            this.position.y += this.velocity.y * deltaTime;
-
-            if (this.position.y <= 0) {
-                this.position.y = 0;
-                this.velocity.y = 0;
-                this.isGrounded = true;
-            }
-        }
-
-        // Keep in bounds
-        const bounds = 95;
-        this.position.x = Math.max(-bounds, Math.min(bounds, this.position.x));
-        this.position.z = Math.max(-bounds, Math.min(bounds, this.position.z));
-
-        return isMoving;
-    }
-
-    updateAbilities(deltaTime) {
-        for (const key in this.abilities) {
-            const ability = this.abilities[key];
-            if (ability.cooldownRemaining > 0) {
-                ability.cooldownRemaining -= deltaTime;
-                if (ability.cooldownRemaining < 0) ability.cooldownRemaining = 0;
-            }
-        }
+        // Update visuals
+        this.updateVisuals(deltaTime, isMoving);
     }
 
     // Ranged auto-attack - fires magic bolt at target
@@ -325,7 +181,6 @@ export class Mage {
         const startPos = this.position.clone();
         startPos.y += 1.5;
 
-        // Projectile visual
         const boltGeometry = new THREE.SphereGeometry(0.2, 8, 6);
         const boltMaterial = new THREE.MeshBasicMaterial({
             color: 0x44aaff,
@@ -336,7 +191,6 @@ export class Mage {
         bolt.position.copy(startPos);
         this.scene.add(bolt);
 
-        // Glow effect
         const glowGeometry = new THREE.SphereGeometry(0.35, 8, 6);
         const glowMaterial = new THREE.MeshBasicMaterial({
             color: 0x88ccff,
@@ -354,7 +208,6 @@ export class Mage {
             type: 'magicBolt'
         });
 
-        // Cast particles
         if (this.game && this.game.particles) {
             this.game.particles.magicCast(startPos);
         }
@@ -365,7 +218,6 @@ export class Mage {
             const proj = this.projectiles[i];
 
             if (!proj.target || !proj.target.isAlive) {
-                // Target died, remove projectile
                 this.scene.remove(proj.mesh);
                 proj.mesh.geometry.dispose();
                 proj.mesh.material.dispose();
@@ -373,7 +225,6 @@ export class Mage {
                 continue;
             }
 
-            // Move toward target
             const targetPos = proj.target.position.clone();
             targetPos.y += 1;
 
@@ -383,22 +234,17 @@ export class Mage {
 
             proj.mesh.position.addScaledVector(dir, proj.speed * deltaTime);
 
-            // Check hit
             if (dist < 0.5) {
-                // Deal damage
                 proj.target.takeDamage(proj.damage, this);
 
-                // Damage number
                 if (this.game && this.game.effects) {
                     this.game.effects.createDamageNumber(proj.target.position, proj.damage);
                 }
 
-                // Impact particles
                 if (this.game && this.game.particles) {
                     this.game.particles.magicImpact(proj.mesh.position);
                 }
 
-                // Remove projectile
                 this.scene.remove(proj.mesh);
                 proj.mesh.geometry.dispose();
                 proj.mesh.material.dispose();
@@ -407,33 +253,25 @@ export class Mage {
         }
     }
 
-    // Q - Blizzard: AoE slow zone at target location
+    // ========== MAGE ABILITIES ==========
+
     useBlizzard(targetPosition) {
-        console.log('Mage.useBlizzard called with position:', targetPosition);
         const ability = this.abilities.blizzard;
-        if (ability.cooldownRemaining > 0) {
-            console.log('Blizzard on cooldown:', ability.cooldownRemaining);
-            return false;
-        }
+        if (ability.cooldownRemaining > 0) return false;
 
         ability.cooldownRemaining = ability.cooldown;
-        console.log('Blizzard activated, creating zone...');
 
-        // Play cast animation
         if (this.useAnimatedCharacter) {
             this.character.playAttack(2);
         }
 
-        // Create blizzard zone
         this.createBlizzardZone(targetPosition);
-
         return true;
     }
 
     createBlizzardZone(position) {
         const ability = this.abilities.blizzard;
 
-        // Visual - icy circle on ground
         const zoneGeometry = new THREE.CircleGeometry(ability.radius, 32);
         const zoneMaterial = new THREE.MeshBasicMaterial({
             color: 0x88ccff,
@@ -448,7 +286,6 @@ export class Mage {
         zone.position.y = 0.35;
         this.scene.add(zone);
 
-        // Border ring
         const borderGeometry = new THREE.RingGeometry(ability.radius - 0.15, ability.radius, 32);
         const borderMaterial = new THREE.MeshBasicMaterial({
             color: 0xaaddff,
@@ -475,7 +312,6 @@ export class Mage {
             tickTimer: 0
         });
 
-        // Initial burst particles
         if (this.game && this.game.particles) {
             this.game.particles.blizzardBurst(position);
         }
@@ -487,7 +323,6 @@ export class Mage {
             effect.duration -= deltaTime;
 
             if (effect.duration <= 0) {
-                // Remove effect
                 this.scene.remove(effect.mesh);
                 this.scene.remove(effect.border);
                 effect.mesh.geometry.dispose();
@@ -498,42 +333,36 @@ export class Mage {
                 continue;
             }
 
-            // Tick damage and slow
             effect.tickTimer += deltaTime;
             if (effect.tickTimer >= 0.5) {
                 effect.tickTimer = 0;
 
-                // Apply to enemies in range
                 if (this.game && this.game.enemies) {
                     for (const enemy of this.game.enemies) {
                         if (!enemy.isAlive) continue;
 
                         const dist = enemy.position.distanceTo(effect.position);
                         if (dist < effect.radius) {
-                            // Damage
                             enemy.takeDamage(effect.damage, this);
 
                             if (this.game.effects) {
                                 this.game.effects.createDamageNumber(enemy.position, effect.damage);
                             }
 
-                            // Apply slow
                             if (!enemy.originalMoveSpeed) {
                                 enemy.originalMoveSpeed = enemy.moveSpeed;
                             }
                             enemy.moveSpeed = enemy.originalMoveSpeed * effect.slowAmount;
-                            enemy.slowTimer = 1.0; // Reset slow timer
+                            enemy.slowTimer = 1.0;
                         }
                     }
                 }
 
-                // Spawn ice particles
                 if (this.game && this.game.particles) {
                     this.game.particles.blizzardTick(effect.position);
                 }
             }
 
-            // Fade out near end
             if (effect.duration < 1) {
                 effect.mesh.material.opacity = effect.duration * 0.4;
                 effect.border.material.opacity = effect.duration * 0.7;
@@ -541,29 +370,20 @@ export class Mage {
         }
     }
 
-    // F - Flame Wave: Cone fire attack
     useFlameWave(enemies) {
-        console.log('Mage.useFlameWave called, enemies count:', enemies?.length);
         const ability = this.abilities.flameWave;
-        if (ability.cooldownRemaining > 0) {
-            console.log('Flame Wave on cooldown:', ability.cooldownRemaining);
-            return false;
-        }
+        if (ability.cooldownRemaining > 0) return false;
 
         ability.cooldownRemaining = ability.cooldown;
-        console.log('Flame Wave activated!');
 
-        // Play cast animation
         if (this.useAnimatedCharacter) {
             this.character.playAttack(3);
         }
 
-        // Visual effect
         if (this.game && this.game.effects) {
             this.game.effects.createFlameWaveEffect(this.position, this.rotation);
         }
 
-        // Particle effect
         if (this.game && this.game.particles) {
             const forward = new THREE.Vector3(
                 Math.sin(this.rotation),
@@ -573,7 +393,6 @@ export class Mage {
             this.game.particles.flameWave(this.position, forward, ability.range);
         }
 
-        // Hit enemies in cone
         let hitCount = 0;
         for (const enemy of enemies) {
             if (!enemy.isAlive) continue;
@@ -607,24 +426,16 @@ export class Mage {
         return hitCount > 0;
     }
 
-    // E - Burn Aura: Toggle AoE damage around self
     toggleBurnAura() {
-        console.log('Mage.toggleBurnAura called, current state:', this.abilities.burnAura.isActive);
         const ability = this.abilities.burnAura;
-        if (ability.cooldownRemaining > 0) {
-            console.log('Burn Aura on cooldown:', ability.cooldownRemaining);
-            return false;
-        }
+        if (ability.cooldownRemaining > 0) return false;
 
         ability.isActive = !ability.isActive;
         ability.cooldownRemaining = ability.cooldown;
-        console.log('Burn Aura toggled to:', ability.isActive);
 
         if (ability.isActive) {
-            // Create aura visual
             this.createBurnAuraVisual();
         } else {
-            // Remove aura visual
             this.removeBurnAuraVisual();
         }
 
@@ -660,18 +471,15 @@ export class Mage {
         const ability = this.abilities.burnAura;
         ability.tickTimer += deltaTime;
 
-        // Update aura position
         if (this.burnAuraMesh) {
             this.burnAuraMesh.position.x = this.position.x;
             this.burnAuraMesh.position.y = 0.35;
             this.burnAuraMesh.position.z = this.position.z;
 
-            // Pulse effect
             const pulse = Math.sin(ability.tickTimer * 5) * 0.1 + 0.3;
             this.burnAuraMesh.material.opacity = pulse;
         }
 
-        // Fire particles
         if (this.game && this.game.particles && Math.random() < 0.3) {
             const angle = Math.random() * Math.PI * 2;
             const dist = Math.random() * ability.radius;
@@ -683,7 +491,6 @@ export class Mage {
             this.game.particles.burnAuraFlame(pos);
         }
 
-        // Damage tick
         if (ability.tickTimer >= 0.5) {
             ability.tickTimer = 0;
 
@@ -704,19 +511,12 @@ export class Mage {
         }
     }
 
-    // R - Backstep: Dash backward
     useBackstep() {
-        console.log('Mage.useBackstep called');
         const ability = this.abilities.backstep;
-        if (ability.cooldownRemaining > 0) {
-            console.log('Backstep on cooldown:', ability.cooldownRemaining);
-            return false;
-        }
+        if (ability.cooldownRemaining > 0) return false;
 
         ability.cooldownRemaining = ability.cooldown;
-        console.log('Backstep activated!');
 
-        // Calculate backward direction
         const backDir = new THREE.Vector3(
             -Math.sin(this.rotation),
             0,
@@ -725,25 +525,20 @@ export class Mage {
 
         const startPos = this.position.clone();
 
-        // Move backward
         this.position.addScaledVector(backDir, ability.distance);
 
-        // Keep in bounds
-        const bounds = 95;
-        this.position.x = Math.max(-bounds, Math.min(bounds, this.position.x));
-        this.position.z = Math.max(-bounds, Math.min(bounds, this.position.z));
+        const bounds = 38;
+        this.position.x = Math.max(1, Math.min(bounds, this.position.x));
+        this.position.z = Math.max(1, Math.min(bounds, this.position.z));
 
-        // Play jump animation
         if (this.useAnimatedCharacter) {
             this.character.playJump();
         }
 
-        // Trail effect
         if (this.game && this.game.particles) {
             this.game.particles.backstepTrail(startPos, this.position);
         }
 
-        // Screen shake
         if (this.game) {
             this.game.addScreenShake(0.3);
         }
@@ -751,67 +546,15 @@ export class Mage {
         return true;
     }
 
-    // Health Potion
-    usePotion() {
-        const ability = this.abilities.potion;
-        if (ability.cooldownRemaining > 0) return false;
-
-        ability.cooldownRemaining = ability.cooldown;
-        this.health = Math.min(this.maxHealth, this.health + ability.healAmount);
-
-        if (this.game && this.game.effects) {
-            this.game.effects.createPotionEffect(this.position);
-            this.game.effects.createDamageNumber(this.position, ability.healAmount, true);
-        }
-
-        if (this.game && this.game.particles) {
-            this.game.particles.healEffect(this.position);
-        }
-
-        return true;
-    }
-
-    takeDamage(amount) {
-        this.health -= amount;
-
-        if (this.useAnimatedCharacter) {
-            this.character.playImpact();
-        }
-
-        if (this.game && this.game.particles) {
-            this.game.particles.playerHit(this.position);
-            this.game.addScreenShake(Math.min(amount / 20, 0.5));
-        }
-
-        if (this.health <= 0) {
-            this.health = 0;
-            this.die();
-        }
-    }
-
+    // Override die to clean up burn aura
     die() {
-        console.log('Mage died!');
-
-        if (this.useAnimatedCharacter) {
-            this.character.playDeath();
-        }
-
-        // Cleanup burn aura
         this.abilities.burnAura.isActive = false;
         this.removeBurnAuraVisual();
-
-        setTimeout(() => {
-            this.health = this.maxHealth;
-            this.position.set(0, 0, 0);
-            if (this.useAnimatedCharacter) {
-                this.character.playAnimation('idle', true);
-            }
-        }, 2000);
+        super.die();
     }
 
     // Cleanup
     dispose() {
-        // Remove projectiles
         for (const proj of this.projectiles) {
             this.scene.remove(proj.mesh);
             proj.mesh.geometry.dispose();
@@ -819,7 +562,6 @@ export class Mage {
         }
         this.projectiles = [];
 
-        // Remove ground effects
         for (const effect of this.groundEffects) {
             this.scene.remove(effect.mesh);
             this.scene.remove(effect.border);
@@ -830,15 +572,12 @@ export class Mage {
         }
         this.groundEffects = [];
 
-        // Remove burn aura
         this.removeBurnAuraVisual();
 
-        // Remove character
         if (this.character) {
             this.character.dispose();
         }
 
-        // Remove fallback mesh
         if (this.group) {
             this.scene.remove(this.group);
         }
