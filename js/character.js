@@ -59,15 +59,8 @@ export class CharacterController {
             // Create animation mixer
             this.mixer = new THREE.AnimationMixer(this.model);
 
-            // First check if character model has embedded animations
-            if (gltf.animations && gltf.animations.length > 0) {
-                console.log(`Character ${this.characterClass} has ${gltf.animations.length} embedded animations:`, gltf.animations.map(a => a.name));
-                for (const clip of gltf.animations) {
-                    const action = this.mixer.clipAction(clip);
-                    action.setLoop(THREE.LoopRepeat);
-                    this.animations[clip.name.toLowerCase()] = action;
-                }
-            }
+            // Store the gltf for animation loading
+            this.gltf = gltf;
 
             // Load additional animations from animation GLB files
             await this.loadAnimations(loader);
@@ -178,8 +171,9 @@ export class CharacterController {
                     console.log(`Loaded ${gltf.animations.length} animations from ${animFile}:`, gltf.animations.map(a => a.name));
 
                     for (const clip of gltf.animations) {
-                        // Try to map the animation name
-                        let animName = animationMappings[clip.name] || clip.name.toLowerCase();
+                        // Try to map the animation name (case-insensitive)
+                        const clipNameLower = clip.name.toLowerCase();
+                        let animName = animationMappings[clipNameLower] || clipNameLower;
 
                         // Skip if we already have this animation
                         if (this.animations[animName]) continue;
@@ -212,6 +206,31 @@ export class CharacterController {
                 }
             } catch (error) {
                 console.warn(`Could not load animation file ${animFile}:`, error.message);
+            }
+        }
+
+        // Also load embedded animations from character model with same mapping
+        if (this.gltf && this.gltf.animations && this.gltf.animations.length > 0) {
+            console.log(`Character has ${this.gltf.animations.length} embedded animations`);
+            for (const clip of this.gltf.animations) {
+                const clipNameLower = clip.name.toLowerCase();
+                let animName = animationMappings[clipNameLower] || clipNameLower;
+
+                if (this.animations[animName]) continue;
+
+                const action = this.mixer.clipAction(clip);
+
+                // Configure loop settings
+                if (['idle', 'idle2', 'walk', 'walk2', 'walk3', 'run', 'run2', 'jumpIdle'].includes(animName)) {
+                    action.setLoop(THREE.LoopRepeat);
+                } else if (animName.startsWith('death')) {
+                    action.setLoop(THREE.LoopOnce);
+                    action.clampWhenFinished = true;
+                } else {
+                    action.setLoop(THREE.LoopOnce);
+                }
+
+                this.animations[animName] = action;
             }
         }
 
