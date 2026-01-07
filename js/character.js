@@ -256,7 +256,10 @@ export class CharacterController {
             // Try fallback animations
             if (name === 'strafe') name = 'strafeLeft';
             if (!this.animations[name]) {
-                console.warn(`Animation ${name} not found`);
+                // Only warn if animations are loaded (otherwise still loading)
+                if (this.isLoaded && Object.keys(this.animations).length > 0) {
+                    console.warn(`Animation ${name} not found`);
+                }
                 return;
             }
         }
