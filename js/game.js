@@ -208,14 +208,11 @@ export class Game {
             this.dungeon.build();
 
             // Use dungeon for walkability checks
-            // Note: input.js calls isWalkable with TILE coords, so convert to world coords
             const tileSize = this.dungeon.tileSize;
             this.tileMap = {
                 isWalkable: (tileX, tileY) => {
-                    // Convert tile coords to world coords for dungeon check
-                    const worldX = tileX * tileSize;
-                    const worldZ = tileY * tileSize;
-                    return this.dungeon.isWalkable(worldX, worldZ);
+                    // Direct tile check - no coordinate conversion needed
+                    return this.dungeon.isTileWalkable(tileX, tileY);
                 },
                 worldToTile: (x, z) => this.dungeon.worldToTile(x, z),
                 tileToWorld: (x, y) => this.dungeon.tileToWorld(x, y),

@@ -211,7 +211,13 @@ export class PlayerBase {
         // Reset after delay
         setTimeout(() => {
             this.health = this.maxHealth;
-            this.position.set(0, 0, 0);
+            // Reset to spawn position if available, otherwise center of map
+            if (this.game && this.game.dungeon) {
+                const spawn = this.game.dungeon.getSpawnPosition();
+                this.position.set(spawn.x, 0, spawn.z);
+            } else {
+                this.position.set(15, 0, 15);
+            }
             if (this.useAnimatedCharacter) {
                 this.character.playAnimation('idle', true);
             }

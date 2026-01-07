@@ -419,9 +419,13 @@ export class DungeonBuilder {
 
     // Check if a world position is walkable
     isWalkable(worldX, worldZ) {
-        const tileX = Math.floor(worldX / this.tileSize + 0.5);
-        const tileY = Math.floor(worldZ / this.tileSize + 0.5);
+        const tileX = Math.round(worldX / this.tileSize);
+        const tileY = Math.round(worldZ / this.tileSize);
+        return this.isTileWalkable(tileX, tileY);
+    }
 
+    // Check if a tile coordinate is walkable (direct check, no conversion)
+    isTileWalkable(tileX, tileY) {
         if (tileX < 0 || tileX >= this.width || tileY < 0 || tileY >= this.height) {
             return false;
         }
@@ -433,8 +437,8 @@ export class DungeonBuilder {
     // Convert world to tile coordinates
     worldToTile(worldX, worldZ) {
         return {
-            x: Math.floor(worldX / this.tileSize + 0.5),
-            y: Math.floor(worldZ / this.tileSize + 0.5)
+            x: Math.round(worldX / this.tileSize),
+            y: Math.round(worldZ / this.tileSize)
         };
     }
 
