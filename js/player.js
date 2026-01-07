@@ -455,7 +455,9 @@ export class Player extends PlayerBase {
         const ability = this.abilities.cleave;
         const group = new THREE.Group();
 
-        const geometry = new THREE.CircleGeometry(ability.range, 32, -ability.angle / 2, ability.angle);
+        // Offset by 90 degrees so the cone points forward (+Z) when rotation.y = 0
+        const angleOffset = Math.PI / 2;
+        const geometry = new THREE.CircleGeometry(ability.range, 32, -ability.angle / 2 + angleOffset, ability.angle);
         const material = new THREE.MeshBasicMaterial({
             color: 0xff6600,
             transparent: true,
@@ -468,7 +470,7 @@ export class Player extends PlayerBase {
         cone.position.y = 0.1;
         group.add(cone);
 
-        const edgeGeo = new THREE.RingGeometry(ability.range - 0.15, ability.range, 32, 1, -ability.angle / 2, ability.angle);
+        const edgeGeo = new THREE.RingGeometry(ability.range - 0.15, ability.range, 32, 1, -ability.angle / 2 + angleOffset, ability.angle);
         const edgeMat = new THREE.MeshBasicMaterial({
             color: 0xffaa00,
             transparent: true,
